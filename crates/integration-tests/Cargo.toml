@@ -1,5 +1,5 @@
 [package]
-name = "pc-wizard-integration-tests"
+name = "character-wizard-integration-tests"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,15 +7,15 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "Compatibility and PDF integration tests for pc-wizard"
+description = "Compatibility and PDF integration tests for character-wizard"
 publish = false
 
 [lints]
 workspace = true
 
 [dev-dependencies]
-pc-wizard-domain = { path = "../domain" }
-pc-wizard-pdf-renderer = { path = "../pdf-renderer" }
+character-wizard-domain = { path = "../domain" }
+character-wizard-pdf-renderer = { path = "../pdf-renderer" }
 lopdf.workspace = true
 serde.workspace = true
 serde_json.workspace = true

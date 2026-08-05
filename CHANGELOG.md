@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to pc-wizard are documented here. The project follows
+All notable changes to character-wizard are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]

@@ -1,6 +1,6 @@
 //! Supported-template validation and `AcroForm` rendering implementation.
 
-use pc_wizard_domain::Character;
+use character_wizard_domain::Character;
 use std::{collections::BTreeMap, path::Path};
 
 use crate::projection::project_spell_rows;
@@ -87,7 +87,7 @@ pub fn render_character(
             character
                 .class_resources()
                 .iter()
-                .map(pc_wizard_domain::ClassResource::summary)
+                .map(character_wizard_domain::ClassResource::summary)
                 .collect::<Vec<_>>()
                 .join("\n"),
         ),

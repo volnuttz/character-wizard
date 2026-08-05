@@ -30,28 +30,28 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: pc-wizard-linux-x86_64
-            binary: target/release/pc-wizard
-            archive: pc-wizard-linux-x86_64.tar.gz
+            artifact: character-wizard-linux-x86_64
+            binary: target/release/character-wizard
+            archive: character-wizard-linux-x86_64.tar.gz
           - os: windows-latest
-            artifact: pc-wizard-windows-x86_64
-            binary: target/release/pc-wizard.exe
-            archive: pc-wizard-windows-x86_64.zip
+            artifact: character-wizard-windows-x86_64
+            binary: target/release/character-wizard.exe
+            archive: character-wizard-windows-x86_64.zip
           - os: macos-15
-            artifact: pc-wizard-macos-arm64
-            binary: target/release/pc-wizard
-            archive: pc-wizard-macos-arm64.tar.gz
+            artifact: character-wizard-macos-arm64
+            binary: target/release/character-wizard
+            archive: character-wizard-macos-arm64.tar.gz
           - os: macos-15-intel
-            artifact: pc-wizard-macos-x86_64
-            binary: target/release/pc-wizard
-            archive: pc-wizard-macos-x86_64.tar.gz
+            artifact: character-wizard-macos-x86_64
+            binary: target/release/character-wizard
+            archive: character-wizard-macos-x86_64.tar.gz
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.88.0 --profile minimal
       - name: Build native executable
-        run: cargo +1.88.0 build --release --locked --package pc-wizard-cli
+        run: cargo +1.88.0 build --release --locked --package character-wizard-cli
       - name: Smoke-test executable (Unix)
         if: runner.os != 'Windows'
         shell: bash
@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/packages
-          tar -czf "dist/packages/${{ matrix.archive }}" -C target/release pc-wizard
+          tar -czf "dist/packages/${{ matrix.archive }}" -C target/release character-wizard
           if command -v sha256sum >/dev/null; then
             (cd dist/packages && sha256sum "${{ matrix.archive }}" > "${{ matrix.archive }}.sha256")
           else
@@ -121,4 +121,4 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: >-
           gh release create "${RELEASE_TAG}" release-assets/*
-          --verify-tag --generate-notes --title "pc-wizard ${RELEASE_TAG}"
+          --verify-tag --generate-notes --title "character-wizard ${RELEASE_TAG}"

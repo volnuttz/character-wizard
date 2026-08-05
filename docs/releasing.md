@@ -1,6 +1,6 @@
-# Releasing pc-wizard
+# Releasing character-wizard
 
-pc-wizard follows Semantic Versioning. The Cargo workspace version, lockfile,
+character-wizard follows Semantic Versioning. The Cargo workspace version, lockfile,
 Git tag, executable version, changelog heading, and release title must agree.
 
 ## Release checklist
@@ -17,8 +17,8 @@ Git tag, executable version, changelog heading, and release title must agree.
    cargo +1.88.0 test --workspace --locked
    cargo +1.88.0 audit
    cargo +1.88.0 deny check
-   cargo +1.88.0 build --release --locked -p pc-wizard-cli
-   target/release/pc-wizard --version
+   cargo +1.88.0 build --release --locked -p character-wizard-cli
+   target/release/character-wizard --version
    ```
 
 4. Smoke-test `validate`, `show`, and `create --from-json` with the supported
@@ -27,7 +27,7 @@ Git tag, executable version, changelog heading, and release title must agree.
    and push an annotated tag:
 
    ```console
-   git tag -a vX.Y.Z -m "pc-wizard X.Y.Z"
+   git tag -a vX.Y.Z -m "character-wizard X.Y.Z"
    git push origin vX.Y.Z
    ```
 

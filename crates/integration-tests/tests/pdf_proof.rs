@@ -1,10 +1,10 @@
 use std::{fs, path::PathBuf};
 
-use lopdf::{Document, Object};
-use pc_wizard_domain::Character;
-use pc_wizard_pdf_renderer::{
+use character_wizard_domain::Character;
+use character_wizard_pdf_renderer::{
     acroform_inventory, read_field_values, render_character, template_inventory,
 };
+use lopdf::{Document, Object};
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -90,8 +90,10 @@ fn renderer_enumerates_the_complete_acroform_catalog() {
 #[test]
 fn production_renderer_writes_readable_values_and_appearances() {
     let root = repository_root();
-    let directory =
-        std::env::temp_dir().join(format!("pc-wizard-production-proof-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "character-wizard-production-proof-{}",
+        std::process::id()
+    ));
     fs::create_dir_all(&directory).expect("temporary directory");
     let source = fs::read_to_string(root.join("fixtures/complete-character.json"))
         .expect("character fixture");

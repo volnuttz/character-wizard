@@ -1,4 +1,4 @@
-# pc-wizard contributor guidance
+# character-wizard contributor guidance
 
 ## Project scope
 
@@ -60,7 +60,7 @@ cargo +1.88.0 audit
 cargo +1.88.0 deny check
 ```
 
-Also build the release binary and run `target/release/pc-wizard --help` after
+Also build the release binary and run `target/release/character-wizard --help` after
 changing commands or options. For an
 interactive-flow change, exercise the affected path or test the prompt adapters.
 For packaging or release changes, run the native create smoke scenario; validate

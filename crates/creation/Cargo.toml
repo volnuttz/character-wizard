@@ -1,5 +1,5 @@
 [package]
-name = "pc-wizard-creation"
+name = "character-wizard-creation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,14 +7,14 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "Interactive creation workflow for pc-wizard"
+description = "Interactive creation workflow for character-wizard"
 
 [lints]
 workspace = true
 
 [dependencies]
-pc-wizard-domain = { path = "../domain" }
-pc-wizard-srd-data = { path = "../srd-data" }
+character-wizard-domain = { path = "../domain" }
+character-wizard-srd-data = { path = "../srd-data" }
 serde.workspace = true
 serde_json.workspace = true
 rand.workspace = true

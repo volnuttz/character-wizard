@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use pc_wizard_domain::Character;
+use character_wizard_domain::Character;
 
 pub(super) fn project_spell_rows(character: &Character, values: &mut BTreeMap<String, String>) {
     const NOTES: [&str; 30] = [

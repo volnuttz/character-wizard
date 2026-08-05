@@ -1,5 +1,5 @@
 [package]
-name = "pc-wizard-srd-data"
+name = "character-wizard-srd-data"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "SRD 5.2.1 level-1 data for pc-wizard"
+description = "SRD 5.2.1 level-1 data for character-wizard"
 
 [lints]
 workspace = true

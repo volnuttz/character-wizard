@@ -1,4 +1,4 @@
-# pc-wizard project roadmap
+# character-wizard project roadmap
 
 Last reviewed: 2026-07-16
 
@@ -105,7 +105,7 @@ Status: complete and verified on 2026-07-13.
 - [x] Exclude `assets/SRD_CC_v5.2.1.pdf` and `assets/character-sheet.pdf` from
   wheel and source distributions.
 - [x] Define intentional sdist contents rather than relying on automatic inclusion.
-- [x] Add `pc-wizard --version`.
+- [x] Add `character-wizard --version`.
 - [x] Add package metadata: MIT license, authors, classifiers, URLs, and keywords.
 - [x] Add an SRD attribution and third-party notices document.
 - [x] Test wheel installation in a clean isolated environment.
@@ -120,7 +120,7 @@ Exit criteria:
 
 ## Phase 2: Self-contained executables and releases
 
-Goal: distribute `pc-wizard` to users who do not have Python or uv installed.
+Goal: distribute `character-wizard` to users who do not have Python or uv installed.
 
 Status: complete and verified on 2026-07-13 with the published v0.1.0 release.
 
@@ -145,7 +145,7 @@ Status: complete and verified on 2026-07-13 with the published v0.1.0 release.
 
 Exit criteria:
 
-- A user can download one artifact for their platform, run `pc-wizard`, and create
+- A user can download one artifact for their platform, run `character-wizard`, and create
   a PDF without installing Python, uv, or dependencies.
 - Every published executable is built and smoke-tested on its target operating
   system.

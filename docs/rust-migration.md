@@ -8,12 +8,12 @@ legacy implementation and migration-only generated artifacts were removed.
 
 | Crate | Responsibility |
 | --- | --- |
-| `pc-wizard-srd-data` | SRD-derived tables and stable identifiers |
-| `pc-wizard-domain` | canonical Serde models, validation, and derived values |
-| `pc-wizard-creation` | native wizard stages, drafts, review, and resume |
-| `pc-wizard-pdf-renderer` | template validation, projection, AcroForm writing, and read-back |
-| `pc-wizard-cli` | arguments, exit codes, terminal presentation, and file coordination |
-| `pc-wizard-integration-tests` | production PDF inventory, read-back, and appearance tests |
+| `character-wizard-srd-data` | SRD-derived tables and stable identifiers |
+| `character-wizard-domain` | canonical Serde models, validation, and derived values |
+| `character-wizard-creation` | native wizard stages, drafts, review, and resume |
+| `character-wizard-pdf-renderer` | template validation, projection, AcroForm writing, and read-back |
+| `character-wizard-cli` | arguments, exit codes, terminal presentation, and file coordination |
+| `character-wizard-integration-tests` | production PDF inventory, read-back, and appearance tests |
 
 Dependencies point inward: CLI depends on creation/domain/PDF; creation and PDF
 depend on domain; domain depends on SRD data. JSON remains the canonical record.

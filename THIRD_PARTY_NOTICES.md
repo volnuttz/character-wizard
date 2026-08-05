@@ -13,7 +13,7 @@ This project includes material adapted from the System Reference Document 5.2.1
 
 ## Character-sheet template
 
-The character-sheet template is not included in pc-wizard distributions. Users
+The character-sheet template is not included in character-wizard distributions. Users
 must obtain it separately from the official D&D Beyond downloads page:
 
 - Downloads page: https://www.dndbeyond.com/resources/1779-d-d-character-sheets
@@ -21,10 +21,10 @@ must obtain it separately from the official D&D Beyond downloads page:
 
 The direct URL may change. The supported template states `TM & © 2024 Wizards of
 the Coast LLC`, grants permission to photocopy it for personal use, and credits
-illustrations to Richard Whitters. pc-wizard reads a user's local copy but does
+illustrations to Richard Whitters. character-wizard reads a user's local copy but does
 not redistribute it.
 
 ## Project license
 
-pc-wizard's original source code is licensed under the MIT License. That license
+character-wizard's original source code is licensed under the MIT License. That license
 does not replace or alter third-party licenses, copyrights, or permissions.

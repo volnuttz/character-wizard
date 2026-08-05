@@ -1,4 +1,4 @@
-//! Native pc-wizard command-line entry point.
+//! Native character-wizard command-line entry point.
 
 use std::{
     env, fs,
@@ -7,8 +7,8 @@ use std::{
     process::ExitCode,
 };
 
+use character_wizard_domain::Character;
 use clap::{Args, Parser, Subcommand};
-use pc_wizard_domain::Character;
 
 mod template;
 
@@ -113,12 +113,12 @@ fn create(options: CreateArgs) -> CliResult {
             "Progress is checkpointed in {}; Ctrl-C keeps the latest completed stage.",
             draft.display()
         );
-        match pc_wizard_creation::run_interactive(&draft) {
+        match character_wizard_creation::run_interactive(&draft) {
             Ok(character) => {
                 completed_draft = Some(draft);
                 character
             }
-            Err(pc_wizard_creation::WizardError::SaveAndExit) => {
+            Err(character_wizard_creation::WizardError::SaveAndExit) => {
                 println!("Creation saved in {}.", draft.display());
                 return Ok(());
             }
@@ -137,7 +137,8 @@ fn create(options: CreateArgs) -> CliResult {
             format!("unable to write {}: {error}", json_output.display()),
         )
     })?;
-    if let Err(error) = pc_wizard_pdf_renderer::render_character(&character, &template, &pdf_output)
+    if let Err(error) =
+        character_wizard_pdf_renderer::render_character(&character, &template, &pdf_output)
     {
         let _ = fs::remove_file(&json_output);
         return Err((1, error));
@@ -224,7 +225,7 @@ mod tests {
 
     #[test]
     fn clap_accepts_the_version_flag() {
-        let error = match Cli::try_parse_from(["pc-wizard", "--version"]) {
+        let error = match Cli::try_parse_from(["character-wizard", "--version"]) {
             Ok(_) => panic!("--version should display the package version"),
             Err(error) => error,
         };
@@ -234,7 +235,7 @@ mod tests {
 
     #[test]
     fn create_does_not_require_a_template_argument() {
-        let cli = Cli::try_parse_from(["pc-wizard", "create"]).expect("parse create");
+        let cli = Cli::try_parse_from(["character-wizard", "create"]).expect("parse create");
         let Command::Create(options) = cli.command else {
             panic!("expected create command");
         };

@@ -1,4 +1,4 @@
-# Using Codex in pc-wizard
+# Using Codex in character-wizard
 
 This repository includes durable project guidance and reusable skills for Codex.
 Start Codex from the repository root so it discovers both `AGENTS.md` and the
@@ -20,8 +20,8 @@ matches its description, or you can explicitly invoke one by typing `$` or using
 | --- | --- |
 | `$add-srd-content` | Adding or correcting SRD-derived rules and character options |
 | `$maintain-pdf-mapping` | Inspecting or changing AcroForm field mappings and PDF output |
-| `$verify-pc-wizard` | Running the appropriate tests and full quality gate |
-| `$release-pc-wizard` | Selecting, preparing, publishing, and auditing a release |
+| `$verify-character-wizard` | Running the appropriate tests and full quality gate |
+| `$release-character-wizard` | Selecting, preparing, publishing, and auditing a release |
 
 Example prompts:
 
@@ -30,11 +30,11 @@ Use $add-srd-content to add spell choices for level-1 Wizards from the supplied 
 
 Use $maintain-pdf-mapping to fill the saving-throw proficiency checkboxes.
 
-Use $verify-pc-wizard to validate my current branch and fix any failures.
+Use $verify-character-wizard to validate my current branch and fix any failures.
 
-Use $verify-pc-wizard to rebuild the optimized native executable and run its smoke tests.
+Use $verify-character-wizard to rebuild the optimized native executable and run its smoke tests.
 
-Use $release-pc-wizard to suggest the next version and publish the release.
+Use $release-character-wizard to suggest the next version and publish the release.
 ```
 
 ## Good task prompts

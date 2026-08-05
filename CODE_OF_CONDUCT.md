@@ -2,7 +2,7 @@
 
 ## Our commitment
 
-We are committed to making participation in pc-wizard welcoming and respectful
+We are committed to making participation in character-wizard welcoming and respectful
 for everyone, regardless of background, identity, experience, or ability.
 
 ## Expected behavior

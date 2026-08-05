@@ -1,5 +1,5 @@
 [package]
-name = "pc-wizard-domain"
+name = "character-wizard-domain"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,12 +7,12 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
-description = "Canonical character domain model and derived rules for pc-wizard"
+description = "Canonical character domain model and derived rules for character-wizard"
 
 [lints]
 workspace = true
 
 [dependencies]
-pc-wizard-srd-data = { path = "../srd-data" }
+character-wizard-srd-data = { path = "../srd-data" }
 serde.workspace = true
 serde_json.workspace = true

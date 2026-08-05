@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeSet, fs, path::Path};
 
-use pc_wizard_domain::{
+use character_wizard_domain::{
     AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores, BackgroundAbilityAdjustment,
     Character, ClassChoices, MagicInitiateChoice,
 };
@@ -158,7 +158,7 @@ impl CharacterDraft {
             tool_proficiencies: origin
                 .skilled_proficiencies
                 .iter()
-                .filter(|value| pc_wizard_srd_data::is_tool(value))
+                .filter(|value| character_wizard_srd_data::is_tool(value))
                 .cloned()
                 .collect(),
             magic_initiate_choices: origin.magic_initiate_choices,
@@ -322,10 +322,11 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
     let choose_set =
         |label: &str, choices: &[&str], count| prompts.choose_set(label, choices, count);
     let name = prompt("Character name")?;
-    let character_class = choose("Class", &pc_wizard_srd_data::CLASS_NAMES)?;
-    let background = choose("Background", &pc_wizard_srd_data::BACKGROUND_NAMES)?;
-    let species = choose("Species", &pc_wizard_srd_data::SPECIES_NAMES)?;
-    let sizes = pc_wizard_srd_data::species_rule(&species).map_or(&[][..], |rule| rule.sizes);
+    let character_class = choose("Class", &character_wizard_srd_data::CLASS_NAMES)?;
+    let background = choose("Background", &character_wizard_srd_data::BACKGROUND_NAMES)?;
+    let species = choose("Species", &character_wizard_srd_data::SPECIES_NAMES)?;
+    let sizes =
+        character_wizard_srd_data::species_rule(&species).map_or(&[][..], |rule| rule.sizes);
     let size = if sizes.len() == 1 {
         sizes[0].to_owned()
     } else {
@@ -353,7 +354,7 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
         selected_languages: choose_plain_pair(
             prompts,
             "Choose two standard languages",
-            &pc_wizard_srd_data::STANDARD_LANGUAGES,
+            &character_wizard_srd_data::STANDARD_LANGUAGES,
         )?,
     };
     match species.as_str() {
@@ -370,9 +371,9 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
             origin.elf_lineage = Some(choose("Elven lineage", &["Drow", "High Elf", "Wood Elf"])?);
             origin.elf_spellcasting_ability = Some(choose(
                 "Spellcasting ability",
-                &pc_wizard_srd_data::SPELLCASTING_ABILITIES,
+                &character_wizard_srd_data::SPELLCASTING_ABILITIES,
             )?);
-            let background_skills = pc_wizard_srd_data::background_rule(&background)
+            let background_skills = character_wizard_srd_data::background_rule(&background)
                 .map_or(&[][..], |rule| rule.skills);
             let available: Vec<&str> = ["Insight", "Perception", "Survival"]
                 .into_iter()
@@ -385,7 +386,7 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
                 Some(choose("Gnomish lineage", &["Forest Gnome", "Rock Gnome"])?);
             origin.gnome_spellcasting_ability = Some(choose(
                 "Spellcasting ability",
-                &pc_wizard_srd_data::SPELLCASTING_ABILITIES,
+                &character_wizard_srd_data::SPELLCASTING_ABILITIES,
             )?);
         }
         "Goliath" => {
@@ -402,17 +403,17 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
             )?);
         }
         "Human" => {
-            let background_skills = pc_wizard_srd_data::background_rule(&background)
+            let background_skills = character_wizard_srd_data::background_rule(&background)
                 .map_or(&[][..], |rule| rule.skills);
-            let available: Vec<&str> = pc_wizard_srd_data::SKILLS
+            let available: Vec<&str> = character_wizard_srd_data::SKILLS
                 .iter()
                 .copied()
                 .filter(|skill| !background_skills.contains(skill))
                 .collect();
             origin.human_skill = Some(choose("Additional skill", &available)?);
-            let background_feat =
-                pc_wizard_srd_data::background_rule(&background).map_or("", |rule| rule.feat);
-            let feats: Vec<&str> = pc_wizard_srd_data::ORIGIN_FEATS
+            let background_feat = character_wizard_srd_data::background_rule(&background)
+                .map_or("", |rule| rule.feat);
+            let feats: Vec<&str> = character_wizard_srd_data::ORIGIN_FEATS
                 .iter()
                 .copied()
                 .filter(|feat| {
@@ -428,14 +429,14 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
             )?);
             origin.tiefling_spellcasting_ability = Some(choose(
                 "Spellcasting ability",
-                &pc_wizard_srd_data::SPELLCASTING_ABILITIES,
+                &character_wizard_srd_data::SPELLCASTING_ABILITIES,
             )?);
         }
         _ => {}
     }
     let mut magic_lists = Vec::new();
-    if let Some(list) =
-        pc_wizard_srd_data::background_rule(&background).and_then(|rule| rule.magic_initiate_list)
+    if let Some(list) = character_wizard_srd_data::background_rule(&background)
+        .and_then(|rule| rule.magic_initiate_list)
     {
         magic_lists.push(list.to_owned());
     }
@@ -452,21 +453,21 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
             .push(collect_magic_initiate(&list, prompts)?);
     }
     if origin.human_origin_feat.as_deref() == Some("Skilled") {
-        let background_rule = pc_wizard_srd_data::background_rule(&background)
+        let background_rule = character_wizard_srd_data::background_rule(&background)
             .ok_or_else(|| "unknown background".to_owned())?;
         let unavailable = [
             origin.human_skill.as_deref(),
             origin.elf_keen_senses_skill.as_deref(),
         ];
-        let choices: Vec<&str> = pc_wizard_srd_data::SKILLS
+        let choices: Vec<&str> = character_wizard_srd_data::SKILLS
             .iter()
             .copied()
             .filter(|skill| !background_rule.skills.contains(skill))
             .filter(|skill| !unavailable.contains(&Some(*skill)))
             .chain(
-                pc_wizard_srd_data::ARTISAN_TOOLS
+                character_wizard_srd_data::ARTISAN_TOOLS
                     .iter()
-                    .chain(pc_wizard_srd_data::MUSICAL_INSTRUMENTS.iter())
+                    .chain(character_wizard_srd_data::MUSICAL_INSTRUMENTS.iter())
                     .copied()
                     .filter(|tool| *tool != background_rule.tool),
             )
@@ -478,13 +479,13 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
 
 fn collect_magic_initiate(list: &str, prompts: &dyn PromptPort) -> Result<MagicInitiateChoice> {
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
-    let rules = pc_wizard_srd_data::magic_initiate_spell_list(list)
+    let rules = character_wizard_srd_data::magic_initiate_spell_list(list)
         .ok_or_else(|| "invalid spell list".to_owned())?;
     Ok(MagicInitiateChoice {
         spell_list: list.to_owned(),
         spellcasting_ability: choose(
             "Magic Initiate spellcasting ability",
-            &pc_wizard_srd_data::SPELLCASTING_ABILITIES,
+            &character_wizard_srd_data::SPELLCASTING_ABILITIES,
         )?,
         cantrips: choose_pair(prompts, "Magic Initiate cantrips", rules.cantrips)?,
         level_one_spell: choose("Magic Initiate level 1 spell", rules.level_one_spells)?,
@@ -504,13 +505,13 @@ fn collect_abilities(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<A
     )?;
     let (method, scores) = match method_label.as_str() {
         "Use the class suggested array" => {
-            let values = pc_wizard_srd_data::suggested_array(&origin.character_class)
+            let values = character_wizard_srd_data::suggested_array(&origin.character_class)
                 .ok_or_else(|| "unknown class suggested array".to_owned())?;
             (AbilityGenerationMethod::SuggestedArray, scores_from(values))
         }
         "Assign the standard array" => (
             AbilityGenerationMethod::StandardArray,
-            assign_score_pool(pc_wizard_srd_data::STANDARD_ARRAY, prompts)?,
+            assign_score_pool(character_wizard_srd_data::STANDARD_ARRAY, prompts)?,
         ),
         "Roll 4d6 and drop the lowest" => {
             let mut rng = rand::rng();
@@ -594,9 +595,9 @@ fn collect_point_buy_scores(prompts: &dyn PromptPort) -> Result<AbilityScores> {
     loop {
         let spent: u8 = values
             .iter()
-            .map(|value| pc_wizard_srd_data::point_buy_cost(*value).unwrap_or(0))
+            .map(|value| character_wizard_srd_data::point_buy_cost(*value).unwrap_or(0))
             .sum();
-        let remaining = pc_wizard_srd_data::POINT_BUY_BUDGET - spent;
+        let remaining = character_wizard_srd_data::POINT_BUY_BUDGET - spent;
         let summary = ABILITIES
             .iter()
             .zip(values)
@@ -626,11 +627,12 @@ fn collect_point_buy_scores(prompts: &dyn PromptPort) -> Result<AbilityScores> {
             .iter()
             .position(|ability| *ability == choice)
             .ok_or_else(|| "unknown ability".to_owned())?;
-        let refunded = pc_wizard_srd_data::point_buy_cost(values[index]).unwrap_or(0);
+        let refunded = character_wizard_srd_data::point_buy_cost(values[index]).unwrap_or(0);
         let available = remaining + refunded;
         let labels: Vec<String> = (8..=15)
             .filter(|score| {
-                pc_wizard_srd_data::point_buy_cost(*score).is_some_and(|cost| cost <= available)
+                character_wizard_srd_data::point_buy_cost(*score)
+                    .is_some_and(|cost| cost <= available)
             })
             .map(|score| score.to_string())
             .collect();
@@ -650,7 +652,7 @@ fn apply_background_increases(
     prompts: &dyn PromptPort,
 ) -> Result<AbilityScores> {
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
-    let rule = pc_wizard_srd_data::background_rule(background)
+    let rule = character_wizard_srd_data::background_rule(background)
         .ok_or_else(|| "unknown background".to_owned())?;
     let plus_one: Vec<&str> = rule
         .abilities
@@ -713,7 +715,7 @@ fn title(value: &str) -> String {
 }
 
 pub(crate) fn choice_description(choice: &str) -> Option<String> {
-    if let Some(rule) = pc_wizard_srd_data::class_rule(choice) {
+    if let Some(rule) = character_wizard_srd_data::class_rule(choice) {
         return Some(format!(
             "d{} Hit Die; saves {}; choose {} skills; armor {}; weapons {}; features {}",
             rule.hit_die,
@@ -721,10 +723,10 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
             rule.skill_count,
             rule.armor,
             rule.weapons,
-            pc_wizard_srd_data::class_features(choice).join(", ")
+            character_wizard_srd_data::class_features(choice).join(", ")
         ));
     }
-    if let Some(rule) = pc_wizard_srd_data::background_rule(choice) {
+    if let Some(rule) = character_wizard_srd_data::background_rule(choice) {
         return Some(format!(
             "boost {}; feat {}; skills {}; tool {}",
             rule.abilities.join(", "),
@@ -733,7 +735,7 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
             rule.tool
         ));
     }
-    if let Some(rule) = pc_wizard_srd_data::species_rule(choice) {
+    if let Some(rule) = character_wizard_srd_data::species_rule(choice) {
         let vision = rule.darkvision_range.map_or_else(
             || "no Darkvision".to_owned(),
             |range| format!("Darkvision {range} ft."),
@@ -742,10 +744,10 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
             "{}; Speed {} ft.; {vision}; {}",
             rule.sizes.join(" or "),
             rule.speed,
-            pc_wizard_srd_data::species_traits(choice).join(", ")
+            character_wizard_srd_data::species_traits(choice).join(", ")
         ));
     }
-    if let Some(rule) = pc_wizard_srd_data::spell_rule(choice) {
+    if let Some(rule) = character_wizard_srd_data::spell_rule(choice) {
         let mut tags = Vec::new();
         if rule.concentration {
             tags.push("Concentration");
@@ -768,7 +770,7 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
             }
         ));
     }
-    if let Some(rule) = pc_wizard_srd_data::weapon_rule(choice) {
+    if let Some(rule) = character_wizard_srd_data::weapon_rule(choice) {
         return Some(format!(
             "{} {} {}; mastery {}; range {}{}; {}",
             rule.damage,
@@ -781,7 +783,7 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
             rule.properties.join(", ")
         ));
     }
-    if let Some(ability) = pc_wizard_srd_data::skill_ability(choice) {
+    if let Some(ability) = character_wizard_srd_data::skill_ability(choice) {
         return Some(format!("uses {}", title(ability)));
     }
     match choice {
@@ -811,9 +813,9 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
     let choose_set =
         |label: &str, choices: &[&str], count| prompts.choose_set(label, choices, count);
-    let rule = pc_wizard_srd_data::class_rule(&origin.character_class)
+    let rule = character_wizard_srd_data::class_rule(&origin.character_class)
         .ok_or_else(|| "unknown class".to_owned())?;
-    let background = pc_wizard_srd_data::background_rule(&origin.background)
+    let background = character_wizard_srd_data::background_rule(&origin.background)
         .ok_or_else(|| "unknown background".to_owned())?;
     let unavailable: BTreeSet<&str> = background
         .skills
@@ -825,7 +827,7 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
             origin
                 .skilled_proficiencies
                 .iter()
-                .filter(|value| pc_wizard_srd_data::skill_ability(value).is_some())
+                .filter(|value| character_wizard_srd_data::skill_ability(value).is_some())
                 .map(String::as_str),
         )
         .collect();
@@ -837,13 +839,13 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
         .collect();
     let class_skills = choose_set("Class skills", &available_skills, rule.skill_count)?;
     let mut choices = ClassChoices::default();
-    let mastery_count = pc_wizard_srd_data::weapon_mastery_count(&origin.character_class);
+    let mastery_count = character_wizard_srd_data::weapon_mastery_count(&origin.character_class);
     if mastery_count > 0 {
-        let mastery_options: Vec<&str> = pc_wizard_srd_data::WEAPON_NAMES
+        let mastery_options: Vec<&str> = character_wizard_srd_data::WEAPON_NAMES
             .iter()
             .copied()
             .filter(|weapon| {
-                let weapon = pc_wizard_srd_data::weapon_rule(weapon).expect("known weapon");
+                let weapon = character_wizard_srd_data::weapon_rule(weapon).expect("known weapon");
                 match origin.character_class.as_str() {
                     "Barbarian" => weapon.kind == "Melee",
                     "Rogue" => {
@@ -862,14 +864,14 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
     if origin.character_class == "Bard" {
         choices.tools = choose_set(
             "Musical instrument proficiencies",
-            &pc_wizard_srd_data::MUSICAL_INSTRUMENTS,
+            &character_wizard_srd_data::MUSICAL_INSTRUMENTS,
             3,
         )?;
     }
     if origin.character_class == "Monk" {
-        let tools: Vec<&str> = pc_wizard_srd_data::ARTISAN_TOOLS
+        let tools: Vec<&str> = character_wizard_srd_data::ARTISAN_TOOLS
             .iter()
-            .chain(pc_wizard_srd_data::MUSICAL_INSTRUMENTS.iter())
+            .chain(character_wizard_srd_data::MUSICAL_INSTRUMENTS.iter())
             .copied()
             .collect();
         choices
@@ -883,7 +885,7 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
             .chain(class_skills.iter().map(String::as_str))
             .collect();
         choices.expertise = choose_set("Two existing skills for Expertise", &expertise, 2)?;
-        let languages: Vec<&str> = pc_wizard_srd_data::STANDARD_LANGUAGES
+        let languages: Vec<&str> = character_wizard_srd_data::STANDARD_LANGUAGES
             .iter()
             .copied()
             .filter(|language| {
@@ -904,16 +906,16 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
     if origin.character_class == "Fighter" {
         choices.fighting_style = Some(choose(
             "Fighting Style",
-            &pc_wizard_srd_data::FIGHTING_STYLES,
+            &character_wizard_srd_data::FIGHTING_STYLES,
         )?);
     }
     if origin.character_class == "Warlock" {
         choices.eldritch_invocation = Some(choose(
             "Eldritch Invocation",
-            &pc_wizard_srd_data::WARLOCK_INVOCATIONS,
+            &character_wizard_srd_data::WARLOCK_INVOCATIONS,
         )?);
     }
-    if let Some(spells) = pc_wizard_srd_data::class_spell_list(&origin.character_class) {
+    if let Some(spells) = character_wizard_srd_data::class_spell_list(&origin.character_class) {
         let mut cantrip_count = match origin.character_class.as_str() {
             "Bard" | "Druid" | "Warlock" => 2,
             "Cleric" | "Wizard" => 3,
@@ -949,7 +951,7 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
                     .iter()
                     .copied()
                     .filter(|spell| {
-                        !pc_wizard_srd_data::class_always_prepared(&origin.character_class)
+                        !character_wizard_srd_data::class_always_prepared(&origin.character_class)
                             .contains(spell)
                     })
                     .collect();
@@ -977,7 +979,7 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
         class_equipment_option,
         background_equipment_option: choose_background_equipment(prompts, &origin.background)?,
         bard_starting_instrument,
-        alignment: choose("Alignment", &pc_wizard_srd_data::ALIGNMENTS)?,
+        alignment: choose("Alignment", &character_wizard_srd_data::ALIGNMENTS)?,
     })
 }
 
@@ -1021,12 +1023,14 @@ fn class_equipment_labels(character_class: &str, options: &[&str]) -> Vec<String
         .iter()
         .filter_map(|option| {
             if *option == "Gold" {
-                pc_wizard_srd_data::class_starting_gold(character_class)
+                character_wizard_srd_data::class_starting_gold(character_class)
                     .map(|gold| format!("Gold — start with {gold} GP and no class package"))
             } else {
-                pc_wizard_srd_data::class_equipment(character_class, option).map(|(items, gold)| {
-                    format!("{option} — {}; plus {gold} GP", equipment_summary(items))
-                })
+                character_wizard_srd_data::class_equipment(character_class, option).map(
+                    |(items, gold)| {
+                        format!("{option} — {}; plus {gold} GP", equipment_summary(items))
+                    },
+                )
             }
         })
         .collect()
@@ -1034,14 +1038,14 @@ fn class_equipment_labels(character_class: &str, options: &[&str]) -> Vec<String
 
 fn background_equipment_labels(background: &str) -> Vec<String> {
     let mut labels = Vec::new();
-    if let Some((items, gold)) = pc_wizard_srd_data::background_equipment(background) {
+    if let Some((items, gold)) = character_wizard_srd_data::background_equipment(background) {
         labels.push(format!("A — {}; plus {gold} GP", equipment_summary(items)));
     }
     labels.push("Gold — start with 50 GP and no background package".to_owned());
     labels
 }
 
-fn equipment_summary(items: &[pc_wizard_srd_data::EquipmentGrant]) -> String {
+fn equipment_summary(items: &[character_wizard_srd_data::EquipmentGrant]) -> String {
     items
         .iter()
         .map(|item| {
@@ -1192,7 +1196,7 @@ mod tests {
         character_review_rows, class_equipment_labels, collect_details, run_interactive_with,
     };
     use crate::{PromptPort, Result, WizardError};
-    use pc_wizard_domain::Character;
+    use character_wizard_domain::Character;
 
     struct ScriptedPrompts;
 
@@ -1215,7 +1219,7 @@ mod tests {
     fn temporary_draft(label: &str) -> std::path::PathBuf {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         std::env::temp_dir().join(format!(
-            "pc-wizard-{label}-{}-{}.json",
+            "character-wizard-{label}-{}-{}.json",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ))

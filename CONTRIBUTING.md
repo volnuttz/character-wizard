@@ -1,4 +1,4 @@
-# Contributing to pc-wizard
+# Contributing to character-wizard
 
 Read [AGENTS.md](AGENTS.md) before making changes. Use the pinned Rust 1.88.0
 toolchain from the repository root; the official character-sheet PDF is a

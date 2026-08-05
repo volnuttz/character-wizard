@@ -136,7 +136,7 @@ fn install_download(temporary: &Path, cache: &Path) -> Result<(), String> {
 }
 
 fn validate(path: &Path) -> Result<(), String> {
-    pc_wizard_pdf_renderer::validate_template(path)
+    character_wizard_pdf_renderer::validate_template(path)
 }
 
 fn temporary_download_path(cache: &Path) -> PathBuf {
@@ -150,13 +150,13 @@ fn temporary_download_path(cache: &Path) -> PathBuf {
 }
 
 fn cache_path() -> Result<PathBuf, String> {
-    if let Some(path) = env::var_os("PC_WIZARD_CACHE_DIR") {
+    if let Some(path) = env::var_os("CHARACTER_WIZARD_CACHE_DIR") {
         return Ok(PathBuf::from(path).join(TEMPLATE_NAME));
     }
     platform_cache_root()
-        .map(|root| root.join("pc-wizard").join(TEMPLATE_NAME))
+        .map(|root| root.join("character-wizard").join(TEMPLATE_NAME))
         .ok_or_else(|| {
-            "unable to determine the user cache directory; supply --template PATH or set PC_WIZARD_CACHE_DIR"
+            "unable to determine the user cache directory; supply --template PATH or set CHARACTER_WIZARD_CACHE_DIR"
                 .to_owned()
         })
 }
@@ -211,7 +211,7 @@ mod tests {
     fn temporary_directory(label: &str) -> PathBuf {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let path = env::temp_dir().join(format!(
-            "pc-wizard-template-{label}-{}-{}",
+            "character-wizard-template-{label}-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -288,7 +288,7 @@ mod tests {
             resolve_template_at(None, &root, &cache, &downloader).expect("downloaded template");
         assert_eq!(resolved, cache);
         assert_eq!(downloader.calls.load(Ordering::Relaxed), 1);
-        pc_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
+        character_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 
@@ -328,7 +328,7 @@ mod tests {
             resolve_template_at(None, &root, &cache, &downloader).expect("downloaded template");
         assert_eq!(resolved, cache);
         assert_eq!(downloader.calls.load(Ordering::Relaxed), 1);
-        pc_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
+        character_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 }

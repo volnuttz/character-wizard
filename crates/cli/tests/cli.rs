@@ -13,13 +13,13 @@ fn repository_root() -> PathBuf {
 }
 
 fn executable() -> &'static str {
-    env!("CARGO_BIN_EXE_pc-wizard")
+    env!("CARGO_BIN_EXE_character-wizard")
 }
 
 fn temporary_directory(label: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let path = std::env::temp_dir().join(format!(
-        "pc-wizard-cli-{label}-{}-{}",
+        "character-wizard-cli-{label}-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

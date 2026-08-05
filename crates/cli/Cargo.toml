@@ -1,5 +1,5 @@
 [package]
-name = "pc-wizard-cli"
+name = "character-wizard-cli"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,12 +13,12 @@ description = "Native level-1 SRD character creation CLI"
 workspace = true
 
 [dependencies]
-pc-wizard-creation = { path = "../creation" }
-pc-wizard-domain = { path = "../domain" }
-pc-wizard-pdf-renderer = { path = "../pdf-renderer" }
+character-wizard-creation = { path = "../creation" }
+character-wizard-domain = { path = "../domain" }
+character-wizard-pdf-renderer = { path = "../pdf-renderer" }
 clap.workspace = true
 ureq.workspace = true
 
 [[bin]]
-name = "pc-wizard"
+name = "character-wizard"
 path = "src/main.rs"

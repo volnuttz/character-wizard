@@ -2,7 +2,7 @@
 //!
 //! Renderers use this boundary instead of querying SRD catalog data themselves.
 
-use pc_wizard_srd_data as srd;
+use character_wizard_srd_data as srd;
 
 use crate::Character;
 

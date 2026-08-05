@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use pc_wizard_srd_data as srd;
+use character_wizard_srd_data as srd;
 use serde::{Deserialize, Serialize};
 
 use crate::{BackgroundId, ClassId, Size, SpeciesId};
