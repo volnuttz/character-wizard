@@ -13,10 +13,13 @@ description = "Native level-1 SRD character creation CLI"
 workspace = true
 
 [dependencies]
-character-wizard-creation = { path = "../creation" }
-character-wizard-domain = { path = "../domain" }
-character-wizard-pdf-renderer = { path = "../pdf-renderer" }
 clap.workspace = true
+inquire.workspace = true
+lopdf.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 ureq.workspace = true
 
 [[bin]]

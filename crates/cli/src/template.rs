@@ -136,7 +136,7 @@ fn install_download(temporary: &Path, cache: &Path) -> Result<(), String> {
 }
 
 fn validate(path: &Path) -> Result<(), String> {
-    character_wizard_pdf_renderer::validate_template(path)
+    crate::character_wizard_pdf_renderer::validate_template(path)
 }
 
 fn temporary_download_path(cache: &Path) -> PathBuf {
@@ -288,7 +288,8 @@ mod tests {
             resolve_template_at(None, &root, &cache, &downloader).expect("downloaded template");
         assert_eq!(resolved, cache);
         assert_eq!(downloader.calls.load(Ordering::Relaxed), 1);
-        character_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
+        crate::character_wizard_pdf_renderer::validate_template(&resolved)
+            .expect("valid cached template");
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 
@@ -328,7 +329,8 @@ mod tests {
             resolve_template_at(None, &root, &cache, &downloader).expect("downloaded template");
         assert_eq!(resolved, cache);
         assert_eq!(downloader.calls.load(Ordering::Relaxed), 1);
-        character_wizard_pdf_renderer::validate_template(&resolved).expect("valid cached template");
+        crate::character_wizard_pdf_renderer::validate_template(&resolved)
+            .expect("valid cached template");
         fs::remove_dir_all(root).expect("remove temporary directory");
     }
 }

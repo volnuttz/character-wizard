@@ -7,8 +7,22 @@ use std::{
     process::ExitCode,
 };
 
-use character_wizard_domain::Character;
+use crate::character_wizard_domain::Character;
 use clap::{Args, Parser, Subcommand};
+
+#[path = "creation/lib.rs"]
+pub mod creation;
+#[path = "domain/lib.rs"]
+pub mod domain;
+#[path = "pdf_renderer/lib.rs"]
+pub mod pdf_renderer;
+#[path = "srd_data/lib.rs"]
+pub mod srd_data;
+
+pub use self::creation as character_wizard_creation;
+pub use self::domain as character_wizard_domain;
+pub use self::pdf_renderer as character_wizard_pdf_renderer;
+pub use self::srd_data as character_wizard_srd_data;
 
 mod template;
 

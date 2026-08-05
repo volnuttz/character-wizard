@@ -145,10 +145,13 @@ dependencies = [
 name = "character-wizard-cli"
 version = "0.4.0"
 dependencies = [
- "character-wizard-creation",
- "character-wizard-domain",
- "character-wizard-pdf-renderer",
  "clap",
+ "inquire",
+ "lopdf",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha2",
  "ureq",
 ]
 
