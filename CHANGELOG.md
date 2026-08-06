@@ -21,6 +21,8 @@ All notable changes to character-wizard are documented here. The project follows
   layout, current module paths, focused test commands, and release naming.
 - Added manual-dispatch recovery for every required release workflow when an
   authenticated push is intentionally suppressed from triggering GitHub Actions.
+- Scoped workflow concurrency by commit so delayed events for an older revision
+  cannot cancel release checks for a newer revision.
 
 This release does not intentionally change the canonical character JSON schema,
 SRD rules, interactive creation behavior, or rendered character-sheet values.

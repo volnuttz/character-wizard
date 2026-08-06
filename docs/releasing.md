@@ -44,6 +44,8 @@ gh workflow run "Native binaries" --ref main -f release_tag=vX.Y.Z
 If an authenticated release push does not create workflows, manually dispatch
 `Quality`, `Dependency Audit`, and `Native binaries` on the unchanged default
 branch. Verify that every run uses the exact release commit before tagging.
+Workflow concurrency includes the commit SHA so delayed events for an older
+commit cannot cancel verification of a newer release commit.
 
 Audit every release for four archives and four matching checksum files, correct
 version output, and absence of the SRD and character-sheet PDFs.
