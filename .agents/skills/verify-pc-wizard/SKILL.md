@@ -1,9 +1,9 @@
 ---
 name: verify-pc-wizard
-description: Validate pc-wizard changes and diagnose failures using the pinned Rust quality gate for the single-crate layout. Use before handoff, after implementation, when CI or local lint/test/audit checks fail, or when CLI and PDF behavior needs targeted verification.
+description: Validate character-wizard changes and diagnose failures using the pinned Rust quality gate for the single-crate layout. Use before handoff, after implementation, when CI or local lint/test/audit checks fail, or when CLI and PDF behavior needs targeted verification.
 ---
 
-# Verify pc-wizard
+# Verify character-wizard
 
 Run checks from the repository root with Cargo. Fix failures caused by the current
 change without rewriting unrelated user work.
@@ -11,11 +11,13 @@ change without rewriting unrelated user work.
 ## Workflow
 
 1. Inspect the diff and choose targeted checks while iterating:
-   - Models or rules: `cargo +1.88.0 test --lib`
+   - Models or rules: `cargo +1.88.0 test domain::` or
+     `cargo +1.88.0 test srd_data::`
    - Wizard prompts and CLI surface: `cargo +1.88.0 test --bin character-wizard`
-   - PDF mapping: `cargo +1.88.0 test --test pdf_proof` if integration tests are present
-   - Release packaging: build the binary with `cargo +1.88.0 build --release --locked`, exercise the
-     complete JSON/PDF smoke path, and inspect the archive contents
+   - PDF mapping: `cargo +1.88.0 test pdf_renderer::`
+   - Release packaging: build the binary with
+     `cargo +1.88.0 build --release --locked`, exercise the complete JSON/PDF
+     smoke path, and inspect the archive contents
    - Actions changes: parse every edited workflow as YAML before relying on CI
 2. Run the complete gate before handoff:
 

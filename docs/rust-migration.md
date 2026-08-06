@@ -1,22 +1,23 @@
 # Rust migration
 
-The production application is a Rust 1.88.0 workspace. Python 0.2.1 served as the
+The production application is a single Rust 1.88.0 crate. Python 0.2.1 served as the
 behavioral oracle during migration. After the fully verified `v0.3.0` release, the
 legacy implementation and migration-only generated artifacts were removed.
 
 ## Architecture
 
-| Crate | Responsibility |
+| Module | Responsibility |
 | --- | --- |
-| `character-wizard-srd-data` | SRD-derived tables and stable identifiers |
-| `character-wizard-domain` | canonical Serde models, validation, and derived values |
-| `character-wizard-creation` | native wizard stages, drafts, review, and resume |
-| `character-wizard-pdf-renderer` | template validation, projection, AcroForm writing, and read-back |
-| `character-wizard-cli` | arguments, exit codes, terminal presentation, and file coordination |
-| `character-wizard-integration-tests` | production PDF inventory, read-back, and appearance tests |
+| `src/srd_data/` | SRD-derived tables and stable identifiers |
+| `src/domain/` | Canonical Serde models, validation, derived values, and sheet projection |
+| `src/creation/` | Native wizard stages, prompts, drafts, review, and resume |
+| `src/pdf_renderer/` | Template inventory, projection, AcroForm writing, appearances, and read-back |
+| `src/template.rs` | Explicit, local, cached, and downloaded template resolution |
+| `src/main.rs` | Arguments, exit codes, terminal presentation, and file coordination |
 
-Dependencies point inward: CLI depends on creation/domain/PDF; creation and PDF
-depend on domain; domain depends on SRD data. JSON remains the canonical record.
+The single binary crate keeps these boundaries as Rust modules. Presentation and
+prompts call into domain and renderer APIs; domain logic consumes SRD data. JSON
+remains the canonical record.
 
 ## Recorded compatibility evidence
 
@@ -53,8 +54,9 @@ downloading, validating, and caching the supported official sheet.
   official-template bootstrap; the standard library has no HTTPS client, and
   invoking a platform-specific external downloader would make native releases
   less portable.
-- The CLI and prompt surface intentionally use the standard library to keep the
-  rest of the optimized binary and startup path small.
+- `clap` defines the native command surface, and `inquire` implements the
+  terminal prompt adapter; the standard library does not provide equivalent
+  argument derivation or interactive selection behavior.
 
 `lopdf` requires Rust 1.88, which therefore defines the MSRV. `cargo-deny` records
 the accepted licenses and the narrow temporary allowance for the unmaintained
@@ -63,7 +65,7 @@ at the migration baseline.
 
 ## Quality, release, and rollback
 
-The local gate is formatting, Clippy with warnings denied, full workspace tests,
+The local gate is formatting, Clippy with warnings denied, full crate tests,
 `cargo audit`, and `cargo deny`. GitHub Actions repeats quality and native release
 smokes on Linux x86-64, Windows x86-64, macOS ARM64, and macOS x86-64, generates
 coverage, and packages archives and SHA-256 files. Release binaries contain

@@ -1198,8 +1198,8 @@ mod tests {
         BuildDraft, CharacterDraft, DetailsDraft, OriginDraft, background_equipment_labels,
         character_review_rows, class_equipment_labels, collect_details, run_interactive_with,
     };
-    use crate::creation::{PromptPort, Result, WizardError};
     use crate::character_wizard_domain::Character;
+    use crate::creation::{PromptPort, Result, WizardError};
 
     struct ScriptedPrompts;
 

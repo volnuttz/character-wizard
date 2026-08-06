@@ -870,8 +870,9 @@ mod tests {
 
     #[test]
     fn derives_combat_values_from_the_canonical_fixture() {
-        let character = Character::from_json(include_str!("../../fixtures/complete-character.json"))
-            .expect("valid fixture");
+        let character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("valid fixture");
         assert_eq!(character.hit_points(), 9);
         assert_eq!(character.armor_class(), 14);
         assert_eq!(character.passive_perception(), 12);

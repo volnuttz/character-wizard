@@ -1,6 +1,6 @@
 ---
 name: add-srd-content
-description: Extend or correct pc-wizard game data and character-creation behavior from assets/SRD_CC_v5.2.1.pdf. Use for classes, backgrounds, species, feats, spells, equipment, proficiencies, ability scores, derived rules, or wizard choices sourced from the supplied SRD; do not use for PDF field mapping alone.
+description: Extend or correct character-wizard game data and character-creation behavior from assets/SRD_CC_v5.2.1.pdf. Use for classes, backgrounds, species, feats, spells, equipment, proficiencies, ability scores, derived rules, or wizard choices sourced from the supplied SRD; do not use for PDF field mapping alone.
 ---
 
 # Add SRD content

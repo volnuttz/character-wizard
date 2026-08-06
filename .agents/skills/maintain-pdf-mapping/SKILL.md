@@ -1,6 +1,6 @@
 ---
 name: maintain-pdf-mapping
-description: Inspect, diagnose, test, or update pc-wizard's lopdf AcroForm rendering and opaque character-sheet.pdf field mappings. Use for missing, misplaced, malformed, or new PDF values, checkbox states, appearance streams, and changes to crates/pdf-renderer; do not use for game-rule changes with no PDF impact.
+description: Inspect, diagnose, test, or update character-wizard's lopdf AcroForm rendering and opaque character-sheet.pdf field mappings. Use for missing, misplaced, malformed, or new PDF values, checkbox states, appearance streams, and changes to src/pdf_renderer; do not use for game-rule changes with no PDF impact.
 ---
 
 # Maintain PDF mapping
@@ -12,9 +12,9 @@ and write/read-back tests. The template's names are opaque and must not be guess
 
 1. Read `references/acroform.md` before changing mappings.
 2. Inspect the repository's development-only `assets/character-sheet.pdf` fixture,
-   or the explicit user-supplied template under diagnosis, with the Rust inventory helpers. Capture field
-   name, type, page, rectangle, parent field, current value, and checkbox
-   appearance states.
+   or the explicit user-supplied template under diagnosis, with the Rust inventory
+   helpers. Capture field name, type, page, rectangle, parent field, current value,
+   and checkbox appearance states.
 3. Correlate annotation coordinates with extracted page labels. If ambiguity
    remains, create a temporary diagnostic PDF with unmistakable marker values and
    inspect it; never commit diagnostic output.
@@ -24,7 +24,8 @@ and write/read-back tests. The template's names are opaque and must not be guess
    mapped fields.
 7. Render a sample through an explicit template path, reopen it with lopdf,
    and assert stored values. Preserve both pages and the AcroForm.
-8. Add or update the relevant PDF rendering tests in the crate test suite, then invoke `$verify-pc-wizard`.
+8. Add or update focused tests under `src/pdf_renderer/`, then invoke
+   `$verify-pc-wizard`.
 
 ## Safety
 

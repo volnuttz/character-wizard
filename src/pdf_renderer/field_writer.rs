@@ -4,7 +4,9 @@ use std::{collections::BTreeMap, path::Path};
 
 use lopdf::{Document, Object, ObjectId, dictionary};
 
-use crate::pdf_renderer::{pdf_renderer_appearance::text_appearance, pdf_renderer_template_inventory::field_index};
+use crate::pdf_renderer::{
+    pdf_renderer_appearance::text_appearance, pdf_renderer_template_inventory::field_index,
+};
 
 type Result<T> = std::result::Result<T, String>;
 

@@ -13,4 +13,6 @@ mod pdf_renderer_template_inventory;
 
 pub use pdf_renderer_field_writer::{read_field_value, read_field_values, render_fields};
 pub use pdf_renderer_renderer::*;
-pub use pdf_renderer_template_inventory::{TemplateInventory, acroform_inventory, template_inventory};
+pub use pdf_renderer_template_inventory::{
+    TemplateInventory, acroform_inventory, template_inventory,
+};

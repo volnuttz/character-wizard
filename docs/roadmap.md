@@ -1,6 +1,6 @@
 # character-wizard project roadmap
 
-Last reviewed: 2026-07-16
+Last reviewed: 2026-08-06
 
 This document records the current project state, known gaps, planned phases, and
 completion criteria. Update it when a task is completed, reprioritized, added, or
@@ -20,7 +20,7 @@ Version: `0.4.0`
 
 The production repository now provides:
 
-- [x] Rust 1.88 native workspace managed with Cargo
+- [x] Rust 1.88 single binary crate managed with Cargo and encapsulated modules
 - [x] Native CLI with interactive/non-interactive `create`, `validate`, and `show`
 - [x] Native staged interactive character-creation flow
 - [x] Consistent numbered single- and multiple-choice prompts, list filtering,
@@ -53,8 +53,8 @@ Migration gate verified locally on 2026-07-16:
 
 ```text
 Rust formatting: passed
-Clippy workspace/all targets with warnings denied: passed
-Rust workspace tests: passed, including all class/origin and 375-field parity
+Clippy all targets with warnings denied: passed
+Rust crate tests: passed, including all class/origin and 375-field parity
 Final Python 0.2.1 oracle gate: 163 passed before production cutover
 Native interactive and non-interactive CLI smoke tests: passed
 Optimized Linux x86-64 build and create smoke: passed
@@ -285,16 +285,17 @@ Exit criteria:
 
 Goal: make changes and releases repeatable, reviewable, and safe.
 
-- [~] Continuous integration runs Ruff, Pyright, pytest, and package builds on
-  Linux, Windows, and macOS; automate the existing clean-install test procedure.
+- [x] Continuous integration runs rustfmt, Clippy, locked Cargo tests, coverage,
+  dependency policy checks, and native builds across supported platforms.
 - [x] Add a test-coverage report and agree on a minimum threshold (85% line
   coverage, reported and enforced in the quality workflow).
-- [~] A reusable character JSON fixture supports model and binary smoke tests;
-  extract broader fixtures as character coverage grows.
+- [x] A reusable Rust-owned character JSON fixture supports model and native
+  binary smoke tests.
 - [x] Add parameterized tests for every class, background, and species.
 - [x] Add property-based tests for scores, modifiers, and point-buy constraints.
-- [x] Add dependency update automation for uv and GitHub Actions.
-- [x] Add dependency vulnerability review or audit automation with pip-audit.
+- [x] Add dependency update automation for Cargo and GitHub Actions.
+- [x] Add dependency vulnerability, license, source, and duplicate review with
+  `cargo audit` and `cargo deny`.
 - [x] Add a changelog and release checklist.
 - [x] Adopt semantic versioning and tagged releases.
 - [x] Add contributor and code-of-conduct documents for outside contributors.
@@ -303,8 +304,9 @@ Goal: make changes and releases repeatable, reviewable, and safe.
 - [x] Keep renderer adapters independent of SRD catalog lookups by exposing
   domain-owned character-sheet projections; organize PDF projection code by
   responsibility.
-- [x] Use thin crate façades and internal model, workflow, catalog, typed-record,
-  and PDF-projection modules while preserving the current canonical JSON contract.
+- [x] Consolidate the migration workspace into one binary crate with encapsulated
+  SRD data, domain, creation, template, PDF-renderer, and CLI modules while
+  preserving the canonical JSON contract.
 - [x] Represent canonical class, background, species, and size values with closed
   Rust identifiers while retaining their readable JSON spellings.
 - [x] Route the creation workflow through a terminal-independent prompt contract,
@@ -316,7 +318,7 @@ Goal: make changes and releases repeatable, reviewable, and safe.
 ### Pending module extractions
 
 These are behavior-preserving internal refactors. Complete each item only after
-its focused tests and the full workspace quality gate pass.
+its focused tests and the full crate quality gate pass.
 
 - [x] Split `domain/model.rs` into record types, validation, and derived-value
   modules; keep `Character` as the stable public API and add focused tests for
@@ -372,9 +374,9 @@ local cutover gate were verified on 2026-07-16.
 
 ### Prove the Rust architecture
 
-- [x] Create a Rust workspace with separate crates or modules for SRD data, domain
-  models, character creation, PDF rendering, CLI presentation, and integration
-  tests.
+- [x] Create Rust boundaries for SRD data, domain models, character creation, PDF
+  rendering, CLI presentation, and tests; later consolidate them as modules in
+  the production binary crate.
 - [x] Select and document libraries for argument parsing, interactive prompts,
   Serde JSON handling, error reporting, terminal output, PDF manipulation, and
   cross-platform packaging.
@@ -388,7 +390,7 @@ local cutover gate were verified on 2026-07-16.
   development fixture before committing to a PDF library.
 - [x] Define Rust formatting, Clippy, test, coverage, dependency audit, license
   review, and minimum-supported-Rust-version policies.
-- [x] Record the architecture, crate boundaries, dependency rationale,
+- [x] Record the architecture, module boundaries, dependency rationale,
   compatibility strategy, staged cutover plan, and rollback criteria.
 
 Exit criteria:
@@ -407,9 +409,9 @@ Status: complete and verified for the `0.3.0` native release on 2026-07-16.
 
 ### Compatibility foundation
 
-- [x] Promote the Phase 7 prototype workspace into the production implementation
-  with formatting, linting, tests, dependency auditing, license review, and
-  reproducible cross-platform builds.
+- [x] Promote the Phase 7 prototype into the production Rust implementation, then
+  consolidate it into one crate with formatting, linting, tests, dependency
+  auditing, license review, and reproducible cross-platform builds.
 - [x] Preserve JSON as the canonical character record and define explicit schema
   versioning/migration behavior for files from existing releases.
 - [x] Run the shared black-box compatibility suite against Python and Rust before

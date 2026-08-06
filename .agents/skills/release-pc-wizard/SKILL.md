@@ -1,9 +1,9 @@
 ---
 name: release-pc-wizard
-description: Prepare and publish a pc-wizard Semantic Versioning release through version selection, release metadata updates, local quality and distribution checks, staged GitHub Actions verification, annotated tagging, GitHub Release publication, and final asset auditing. Use when asked to suggest a release version, cut a release, publish a version tag, or diagnose/recover this repository's release process.
+description: Prepare and publish a character-wizard Semantic Versioning release through version selection, release metadata updates, local quality and distribution checks, staged GitHub Actions verification, annotated tagging, GitHub Release publication, and final asset auditing. Use when asked to suggest a release version, cut a release, publish a version tag, or diagnose/recover this repository's release process.
 ---
 
-# Release pc-wizard
+# Release character-wizard
 
 Follow `docs/releasing.md` as the repository policy and use `$verify-pc-wizard`
 for its quality gate. Preserve unrelated work and never move an existing release
@@ -59,14 +59,15 @@ scope, then rerun the failed check and the full gate.
 ## Stage publication safely
 
 1. Commit only the audited release files with a message such as
-   `release: pc-wizard X.Y.Z` and push the release commit to the default branch.
+   `release: character-wizard X.Y.Z` and push the release commit to the default
+   branch.
 2. Monitor both `Quality` and `Native binaries` workflows for that exact commit.
    Verify the commit SHA; do not rely only on workflow names or the latest run.
 3. Create and push the annotated `vX.Y.Z` tag only after both commit workflows
    succeed:
 
    ```console
-   git tag -a vX.Y.Z -m "pc-wizard X.Y.Z"
+   git tag -a vX.Y.Z -m "character-wizard X.Y.Z"
    git push origin vX.Y.Z
    ```
 
@@ -81,7 +82,7 @@ scope, then rerun the failed check and the full gate.
 Confirm that the published release:
 
 - is neither a draft nor a prerelease unless explicitly requested;
-- has tag `vX.Y.Z` and title `pc-wizard vX.Y.Z`;
+- has tag `vX.Y.Z` and title `character-wizard vX.Y.Z`;
 - contains Linux x86-64, Windows x86-64, macOS ARM64, and macOS x86-64 archives;
 - contains one matching `.sha256` file for every archive;
 - contains no source PDF fixture;

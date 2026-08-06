@@ -1,4 +1,4 @@
 interface:
-  display_name: "Verify pc-wizard"
-  short_description: "Run the pc-wizard quality gate"
-  default_prompt: "Use $verify-pc-wizard to validate the current pc-wizard changes."
+  display_name: "Verify character-wizard"
+  short_description: "Run the character-wizard quality gate"
+  default_prompt: "Use $verify-pc-wizard to validate the current character-wizard changes."

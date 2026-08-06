@@ -15,7 +15,7 @@ languages; determine ability scores; choose alignment; fill derived details.
 
 ## Current invariants
 
-- Package: `pc_wizard`; command: `pc-wizard`.
+- Package: `character-wizard-cli`; command: `character-wizard`.
 - Rust: `1.88.0`, edition 2024.
 - Characters start at level 1 and 0 XP.
 - Background skill proficiencies combine with non-duplicating class choices.
@@ -28,11 +28,14 @@ languages; determine ability scores; choose alignment; fill derived details.
 - JSON is canonical; PDFs are generated artifacts.
 - Character JSON uses only the current schema. Do not add schema versions,
   migrations, compatibility aliases, or legacy-shape fallbacks.
-- The official character-sheet template is external and always supplied through
-  `--template`; it is never a package or release asset.
+- The official character-sheet template is external and never a crate or release
+  asset. Runtime resolution checks `--template`, the current directory, and the
+  validated user cache before downloading and caching a supported copy.
 
 ## Test routing
 
-- Rule calculations and validation: `pc-wizard-domain` tests.
-- Score generation and prompt helpers: `pc-wizard-creation` and CLI tests.
-- Field projection and PDF write/read-back: `pc-wizard-integration-tests`.
+- Rule calculations and validation: focused tests under `src/domain/`.
+- Score generation and prompt helpers: focused tests under `src/creation/`.
+- SRD inventories and lookups: focused tests under `src/srd_data/`.
+- Field projection and PDF write/read-back: focused tests under
+  `src/pdf_renderer/`, using the development fixture when required.

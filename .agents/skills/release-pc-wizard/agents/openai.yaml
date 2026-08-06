@@ -1,4 +1,4 @@
 interface:
-  display_name: "Release pc-wizard"
+  display_name: "Release character-wizard"
   short_description: "Prepare, verify, tag, and audit releases"
-  default_prompt: "Use $release-pc-wizard to prepare and publish the next pc-wizard release safely."
+  default_prompt: "Use $release-pc-wizard to prepare and publish the next character-wizard release safely."

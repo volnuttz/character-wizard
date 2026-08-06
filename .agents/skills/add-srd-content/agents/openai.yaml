@@ -1,4 +1,4 @@
 interface:
   display_name: "Add SRD Content"
-  short_description: "Extend pc-wizard from the supplied SRD"
-  default_prompt: "Use $add-srd-content to add an SRD character option to pc-wizard."
+  short_description: "Extend character-wizard from the supplied SRD"
+  default_prompt: "Use $add-srd-content to add an SRD character option to character-wizard."
