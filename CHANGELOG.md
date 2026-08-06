@@ -19,6 +19,8 @@ All notable changes to character-wizard are documented here. The project follows
   compile-time inclusion in the native executable.
 - Updated contributor guidance and repository skills for the single-crate Rust
   layout, current module paths, focused test commands, and release naming.
+- Added manual-dispatch recovery for every required release workflow when an
+  authenticated push is intentionally suppressed from triggering GitHub Actions.
 
 This release does not intentionally change the canonical character JSON schema,
 SRD rules, interactive creation behavior, or rendered character-sheet values.

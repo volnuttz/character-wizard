@@ -41,6 +41,10 @@ If publication fails after a successful tag build, recover without moving the ta
 gh workflow run "Native binaries" --ref main -f release_tag=vX.Y.Z
 ```
 
+If an authenticated release push does not create workflows, manually dispatch
+`Quality`, `Dependency Audit`, and `Native binaries` on the unchanged default
+branch. Verify that every run uses the exact release commit before tagging.
+
 Audit every release for four archives and four matching checksum files, correct
 version output, and absence of the SRD and character-sheet PDFs.
 
