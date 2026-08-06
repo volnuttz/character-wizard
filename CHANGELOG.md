@@ -5,6 +5,12 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+### Changed
+
+- `create` now defaults its JSON and filled-PDF output paths from the character
+  name (for example, `legolas.json` and `legolas.pdf`). The `--json` and
+  `--output` options continue to override either path.
+
 ## [0.5.0] - 2026-08-06
 
 ### Changed

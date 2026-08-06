@@ -44,10 +44,19 @@ struct CreateArgs {
     template: Option<PathBuf>,
     #[arg(long)]
     from_json: Option<PathBuf>,
-    #[arg(long, default_value = "character.json")]
-    json: PathBuf,
-    #[arg(short, long, default_value = "character-sheet-filled.pdf")]
-    output: PathBuf,
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Path for the character JSON (defaults to <character-name>.json)"
+    )]
+    json: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        value_name = "PATH",
+        help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
+    )]
+    output: Option<PathBuf>,
     #[arg(long, default_value = "character-draft.json")]
     draft: PathBuf,
     #[arg(long)]
@@ -110,9 +119,6 @@ fn show(path: &Path) -> CliResult {
 
 fn create(options: CreateArgs) -> CliResult {
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
-    let json_output = options.json;
-    let pdf_output = options.output;
-    confirm_overwrite(&[&json_output, &pdf_output], options.force)?;
 
     let mut completed_draft = None;
     let character = if let Some(source) = options.from_json {
@@ -135,6 +141,13 @@ fn create(options: CreateArgs) -> CliResult {
             Err(error) => return Err((1, error.to_string())),
         }
     };
+    let json_output = options
+        .json
+        .unwrap_or_else(|| character_output_path(&character.name, "json"));
+    let pdf_output = options
+        .output
+        .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
+    confirm_overwrite(&[&json_output, &pdf_output], options.force)?;
     create_parent(&json_output)?;
     create_parent(&pdf_output)?;
     fs::write(
@@ -160,6 +173,23 @@ fn create(options: CreateArgs) -> CliResult {
         let _ = fs::remove_file(draft);
     }
     Ok(())
+}
+
+fn character_output_path(name: &str, extension: &str) -> PathBuf {
+    let stem = name
+        .trim()
+        .chars()
+        .map(|character| {
+            if character.is_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    let stem = stem.trim_matches('-');
+    let stem = if stem.is_empty() { "character" } else { stem };
+    PathBuf::from(format!("{stem}.{extension}"))
 }
 
 fn load_character(path: &Path) -> Result<Character, (u8, String)> {
@@ -229,9 +259,11 @@ fn languages(character: &Character) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use clap::Parser as _;
 
-    use super::{Cli, Command};
+    use super::{Cli, Command, character_output_path};
 
     #[test]
     fn clap_accepts_the_version_flag() {
@@ -250,5 +282,41 @@ mod tests {
             panic!("expected create command");
         };
         assert!(options.template.is_none());
+        assert!(options.json.is_none());
+        assert!(options.output.is_none());
+    }
+
+    #[test]
+    fn create_accepts_explicit_output_paths() {
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "create",
+            "--json",
+            "records/legolas.json",
+            "--output",
+            "sheets/legolas.pdf",
+        ])
+        .expect("parse create");
+        let Command::Create(options) = cli.command else {
+            panic!("expected create command");
+        };
+        assert_eq!(options.json, Some(PathBuf::from("records/legolas.json")));
+        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+    }
+
+    #[test]
+    fn character_name_becomes_safe_default_output_name() {
+        assert_eq!(
+            character_output_path("Legolas", "json"),
+            PathBuf::from("legolas.json")
+        );
+        assert_eq!(
+            character_output_path("Aelinor of Rivendell", "pdf"),
+            PathBuf::from("aelinor-of-rivendell.pdf")
+        );
+        assert_eq!(
+            character_output_path("../../", "json"),
+            PathBuf::from("character.json")
+        );
     }
 }

@@ -1,20 +1,37 @@
 # character-wizard
 
-A native interactive command-line wizard for creating level-1 D&D characters
-from SRD 5.2.1. It saves a validated canonical JSON record and fills the official
-`character-sheet.pdf` AcroForm.
+Create a complete level-1 D&D character in your terminal. `character-wizard`
+walks you through the choices in the SRD 5.2.1, saves the character as JSON, and
+fills the official two-page character sheet for you.
 
-## Install and run
+```console
+character-wizard create
+```
 
-Download the archive and matching `.sha256` file for your platform from the
-[latest GitHub Release](https://github.com/volnuttz/character-wizard/releases/latest):
+At the end, a character named Legolas produces:
 
-- `character-wizard-linux-x86_64.tar.gz`
-- `character-wizard-windows-x86_64.zip`
-- `character-wizard-macos-arm64.tar.gz` for Apple Silicon
-- `character-wizard-macos-x86_64.tar.gz` for Intel Macs
+```text
+legolas.json
+legolas.pdf
+```
 
-Verify the archive before extracting it:
+The JSON file is the source of truth; the PDF is a convenient, filled-in view.
+
+## Get it
+
+Download the archive for your computer and its matching `.sha256` file from the
+[latest release](https://github.com/volnuttz/character-wizard/releases/latest).
+
+| Platform | Archive |
+| --- | --- |
+| Linux (x86_64) | `character-wizard-linux-x86_64.tar.gz` |
+| macOS (Apple Silicon) | `character-wizard-macos-arm64.tar.gz` |
+| macOS (Intel) | `character-wizard-macos-x86_64.tar.gz` |
+| Windows (x86_64) | `character-wizard-windows-x86_64.zip` |
+
+Verify the archive, extract it, then run `character-wizard` (or
+`character-wizard.exe` on Windows). You can place the executable on your `PATH`
+to run it from any folder. No Python or package manager is required.
 
 ```console
 # Linux
@@ -24,60 +41,77 @@ sha256sum --check character-wizard-linux-x86_64.tar.gz.sha256
 shasum --algorithm 256 --check character-wizard-macos-arm64.tar.gz.sha256
 ```
 
-On Windows PowerShell, compare `Get-FileHash` with the hash in the downloaded
-`.sha256` file:
+In Windows PowerShell, run `Get-FileHash .\character-wizard-windows-x86_64.zip
+-Algorithm SHA256` and compare it with the downloaded `.sha256` file. The
+binaries are unsigned, so Windows SmartScreen or macOS Gatekeeper may ask for
+confirmation the first time you open one.
 
-```powershell
-Get-FileHash .\character-wizard-windows-x86_64.zip -Algorithm SHA256
-```
+## Create a character
 
-Extract the archive and place `character-wizard` (or `character-wizard.exe`) on `PATH`. No
-Python runtime or package manager is required. The binaries are unsigned, so
-Windows SmartScreen or macOS Gatekeeper may warn on first launch.
+Run `character-wizard create` and answer the prompts. Your progress is saved
+after each completed stage, so closing the terminal does not lose your work;
+rerun the command to continue from the checkpoint. The final review lets you go
+back and change a section before writing the files.
 
-character-wizard downloads and validates the supported official fillable character
-sheet when needed. For manual or offline use, it is available from:
+The official fillable character-sheet PDF is found in this order:
 
-- [Official character-sheet downloads](https://www.dndbeyond.com/resources/1779-d-d-character-sheets)
-- [Direct PDF download](https://media.dndbeyond.com/compendium-images/free-rules/ph/character-sheet.pdf)
+1. The file passed with `--template`.
+2. `character-sheet.pdf` in the folder where you run the command.
+3. A validated cached copy.
 
-The direct URL may change. The native renderer validates the exact supported
-two-page AcroForm before prompting or writing outputs.
+If none is available, the program downloads and validates the supported official
+sheet, then caches it. For offline use, download the sheet yourself from the
+[official character-sheet downloads](https://www.dndbeyond.com/resources/1779-d-d-character-sheets)
+and pass its path explicitly:
 
 ```console
-character-wizard create
-character-wizard create --template character-sheet.pdf
-character-wizard validate character.json
-character-wizard show character.json
-character-wizard create --template character-sheet.pdf --from-json character.json --force
+character-wizard create --template /path/to/character-sheet.pdf
 ```
 
-Creation writes `character.json` and `character-sheet-filled.pdf` by default.
-Use `--json`, `--output`, and `--draft` to choose other paths. Existing outputs
-require confirmation unless `--force` is supplied. Interactive creation saves a
-checkpoint after every completed stage, supports final review and editing, and
-resumes from the same draft path.
+Set `CHARACTER_WIZARD_CACHE_DIR` to use a different cache location.
 
-The template is resolved in this order: an explicit `--template`, a
-`character-sheet.pdf` in the current directory, or the application cache. When
-none is available, character-wizard visibly downloads the supported official sheet,
-validates it, and saves it to the user cache. Set `CHARACTER_WIZARD_CACHE_DIR` to choose
-a different cache location. Use `--template` for offline or reproducible runs.
+## Choose file names and paths
 
-Character JSON is the canonical current-schema record. The PDF is a rendered
-view; older or unknown JSON shapes are rejected rather than silently migrated.
+By default, output names come from the character name, lowercased and made safe
+for a filename: `Legolas` becomes `legolas.json` and `legolas.pdf`. Use `--json`
+and `--output` whenever you want different names or folders:
+
+```console
+character-wizard create --json saves/legolas.json --output sheets/legolas.pdf
+```
+
+Existing outputs require confirmation. Add `--force` for scripts and other
+non-interactive use.
+
+## Work with saved characters
+
+Validate a JSON record or print a quick character summary:
+
+```console
+character-wizard validate legolas.json
+character-wizard show legolas.json
+```
+
+You can render a known JSON record without completing the wizard again:
+
+```console
+character-wizard create --from-json legolas.json --force
+```
+
+That command still uses the name stored in the JSON for the default output
+names. Pass `--json` or `--output` to override either one.
 
 ## Build from source
 
-The project pins Rust 1.88.0:
+This project uses Rust 1.88.0.
 
 ```console
 rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
 cargo +1.88.0 build --release --locked
-target/release/character-wizard --version
+target/release/character-wizard --help
 ```
 
-The complete development gate is:
+For contributors, the complete check is:
 
 ```console
 cargo +1.88.0 fmt --check
@@ -87,20 +121,13 @@ cargo +1.88.0 audit
 cargo +1.88.0 deny check
 ```
 
-The current scope covers all 12 SRD classes, 4 backgrounds, and 9 species at
-level 1, including suggested/standard arrays, rolled scores, 27-point point buy,
-background increases, class and origin choices, equipment, combat values,
-spellcasting, checkpoint/resume, and the full supported character-sheet mapping.
-
-The completed Python-to-Rust parity and performance results are summarized in
-[`docs/rust-migration.md`](docs/rust-migration.md). The legacy Python
-implementation and migration-only generated artifacts were retired after the
-verified `v0.3.0` native release.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and the
-[roadmap](docs/roadmap.md). SRD attribution and template terms are in
+The current scope includes all 12 SRD classes, four backgrounds, and nine
+species at level 1. See [CONTRIBUTING.md](CONTRIBUTING.md), the
+[changelog](CHANGELOG.md), and the [roadmap](docs/roadmap.md) for project
+details. SRD attribution and character-sheet template terms are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-character-wizard's original source code is available under the [MIT License](LICENSE).
+The original character-wizard source code is available under the [MIT
+License](LICENSE).
