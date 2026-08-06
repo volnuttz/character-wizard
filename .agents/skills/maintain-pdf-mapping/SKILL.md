@@ -24,7 +24,7 @@ and write/read-back tests. The template's names are opaque and must not be guess
    mapped fields.
 7. Render a sample through an explicit template path, reopen it with lopdf,
    and assert stored values. Preserve both pages and the AcroForm.
-8. Add or update `crates/integration-tests/tests/pdf_proof.rs`, then invoke `$verify-pc-wizard`.
+8. Add or update the relevant PDF rendering tests in the crate test suite, then invoke `$verify-pc-wizard`.
 
 ## Safety
 
@@ -32,4 +32,4 @@ and write/read-back tests. The template's names are opaque and must not be guess
 - Never copy the official template into package assets or release artifacts.
 - Do not flatten the form unless explicitly requested.
 - Do not infer semantic meaning from numeric field names alone.
-- Keep mapping constants centralized in `crates/pdf-renderer`.
+- Keep mapping constants centralized in `src/pdf_renderer`.

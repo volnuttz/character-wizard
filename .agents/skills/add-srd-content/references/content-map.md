@@ -2,11 +2,11 @@
 
 ## Code responsibilities
 
-- `crates/srd-data`: immutable source data and rule metadata.
-- `crates/domain`: schema validation, calculated values, and JSON round trips.
-- `crates/creation`: ordering and collection of interactive choices.
-- `crates/pdf-renderer`: projection of a valid character onto the sheet.
-- `crates/cli`: command boundaries, errors, and terminal presentation.
+- `src/srd_data`: immutable source data and rule metadata.
+- `src/domain`: schema validation, calculated values, and JSON round trips.
+- `src/creation`: ordering and collection of interactive choices.
+- `src/pdf_renderer`: projection of a valid character onto the sheet.
+- `src/main.rs`: command boundaries, errors, and terminal presentation.
 
 ## Character-creation sequence
 

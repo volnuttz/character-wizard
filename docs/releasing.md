@@ -1,23 +1,23 @@
 # Releasing character-wizard
 
-character-wizard follows Semantic Versioning. The Cargo workspace version, lockfile,
+character-wizard follows Semantic Versioning. The crate version, lockfile,
 Git tag, executable version, changelog heading, and release title must agree.
 
 ## Release checklist
 
 1. Confirm the Quality, Dependency Audit, and Native binaries workflows pass on
    the exact release commit.
-2. Update `[workspace.package].version` in `Cargo.toml`, refresh `Cargo.lock` if
+2. Update the package version in `Cargo.toml`, refresh `Cargo.lock` if
    needed, and update `docs/roadmap.md` plus `CHANGELOG.md`.
 3. Run the complete local gate:
 
    ```console
    cargo +1.88.0 fmt --check
-   cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
-   cargo +1.88.0 test --workspace --locked
+   cargo +1.88.0 clippy --all-targets -- -D warnings
+   cargo +1.88.0 test --locked
    cargo +1.88.0 audit
    cargo +1.88.0 deny check
-   cargo +1.88.0 build --release --locked -p character-wizard-cli
+   cargo +1.88.0 build --release --locked
    target/release/character-wizard --version
    ```
 

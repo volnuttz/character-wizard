@@ -13,12 +13,11 @@
 
 ## Repository map
 
-- `crates/srd-data/`: SRD-derived data and rule metadata.
-- `crates/domain/`: Serde models, validation, and derived character values.
-- `crates/creation/`: interactive workflow, drafts, resume, and review.
-- `crates/pdf-renderer/`: character-sheet AcroForm mapping and rendering.
-- `crates/cli/`: native command-line entry point and presentation.
-- `crates/integration-tests/`: native PDF integration tests.
+- `src/srd_data/`: SRD-derived data and rule metadata.
+- `src/domain/`: Serde models, validation, and derived character values.
+- `src/creation/`: interactive workflow, drafts, resume, and review.
+- `src/pdf_renderer/`: character-sheet AcroForm mapping and rendering.
+- `src/main.rs`: native command-line entry point and presentation.
 - `fixtures/`: Rust-native CLI and rendering smoke inputs.
 - `CHANGELOG.md`: versioned user-visible release history.
 - `docs/codex.md`: Codex usage and repository skills.
@@ -30,7 +29,7 @@
 ## Working rules
 
 - Use Cargo and the pinned Rust 1.88 toolchain. Keep formatting and Clippy's
-  workspace lint policy clean.
+  lint policy clean for the single crate.
 - Put validation and derived game logic in models or rule helpers, not in CLI
   presentation code.
 - Keep prompts thin: gather choices in `creation`, validate in domain models,
@@ -54,8 +53,8 @@ run the full gate:
 
 ```console
 cargo +1.88.0 fmt --check
-cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
-cargo +1.88.0 test --workspace --locked
+cargo +1.88.0 clippy --all-targets -- -D warnings
+cargo +1.88.0 test --locked
 cargo +1.88.0 audit
 cargo +1.88.0 deny check
 ```
@@ -71,7 +70,7 @@ workflow YAML when Actions files change.
 - Use `$add-srd-content` for SRD-derived classes, backgrounds, species, spells,
   equipment, feats, or character-creation rules.
 - Use `$maintain-pdf-mapping` for `character-sheet.pdf`, AcroForm fields, or
-  `crates/pdf-renderer` changes.
+  `src/pdf_renderer` changes.
 - Use `$verify-pc-wizard` for pre-handoff validation or diagnosing quality-gate
   failures.
 - Use `$release-pc-wizard` to select, prepare, verify, publish, or recover a

@@ -25,8 +25,8 @@ tag.
 ## Prepare the release commit
 
 1. Update every version surface to the same `X.Y.Z`:
-   - workspace package version in `Cargo.toml`;
-   - `Cargo.lock` via `cargo +1.88.0 update --workspace` when required;
+   - package version in `Cargo.toml`;
+   - `Cargo.lock` via `cargo +1.88.0 update` when required;
    - `docs/roadmap.md` current baseline;
    - `CHANGELOG.md` dated release heading and comparison links.
 2. Keep an empty `Unreleased` heading above the new changelog release.
@@ -40,12 +40,12 @@ Run the complete release gate from the repository root:
 
 ```console
 cargo +1.88.0 fmt --check
-cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
-cargo +1.88.0 test --workspace --locked
+cargo +1.88.0 clippy --all-targets -- -D warnings
+cargo +1.88.0 test --locked
 cargo +1.88.0 audit
 cargo +1.88.0 deny check
-cargo +1.88.0 build --release --locked -p pc-wizard-cli
-target/release/pc-wizard --version
+cargo +1.88.0 build --release --locked
+target/release/character-wizard --version
 ```
 
 Inspect every native archive. Confirm that the SRD PDF and official

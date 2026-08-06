@@ -13,7 +13,7 @@ models, prompts, serialization, rendering, and tests.
 1. Read `references/content-map.md` to identify affected modules and invariants.
 2. Locate the rule in `assets/SRD_CC_v5.2.1.pdf`; record the PDF page in
    working notes. Do not rely on memory or another D&D edition.
-3. Inspect existing structures in `crates/srd-data`, domain derivations, creation prompts,
+3. Inspect existing structures in `src/srd_data`, domain derivations, creation prompts,
    PDF output, and tests before editing.
 4. Model structured choices explicitly. Keep display text separate from numeric
    mechanics when calculations depend on a choice.

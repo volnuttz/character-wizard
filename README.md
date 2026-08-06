@@ -69,11 +69,11 @@ view; older or unknown JSON shapes are rejected rather than silently migrated.
 
 ## Build from source
 
-The workspace pins Rust 1.88.0:
+The project pins Rust 1.88.0:
 
 ```console
 rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
-cargo +1.88.0 build --release --locked -p character-wizard-cli
+cargo +1.88.0 build --release --locked
 target/release/character-wizard --version
 ```
 
@@ -81,8 +81,8 @@ The complete development gate is:
 
 ```console
 cargo +1.88.0 fmt --check
-cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
-cargo +1.88.0 test --workspace --locked
+cargo +1.88.0 clippy --all-targets -- -D warnings
+cargo +1.88.0 test --locked
 cargo +1.88.0 audit
 cargo +1.88.0 deny check
 ```

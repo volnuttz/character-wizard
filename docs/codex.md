@@ -63,8 +63,8 @@ The project quality gate is:
 
 ```console
 cargo +1.88.0 fmt --check
-cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
-cargo +1.88.0 test --workspace --locked
+cargo +1.88.0 clippy --all-targets -- -D warnings
+cargo +1.88.0 test --locked
 cargo +1.88.0 audit
 cargo +1.88.0 deny check
 ```
