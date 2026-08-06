@@ -156,55 +156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "character-wizard-creation"
-version = "0.4.0"
-dependencies = [
- "character-wizard-domain",
- "character-wizard-srd-data",
- "inquire",
- "rand",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "character-wizard-domain"
-version = "0.4.0"
-dependencies = [
- "character-wizard-srd-data",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "character-wizard-integration-tests"
-version = "0.4.0"
-dependencies = [
- "character-wizard-domain",
- "character-wizard-pdf-renderer",
- "lopdf",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "character-wizard-pdf-renderer"
-version = "0.4.0"
-dependencies = [
- "character-wizard-domain",
- "lopdf",
- "sha2",
-]
-
-[[package]]
-name = "character-wizard-srd-data"
-version = "0.4.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "cipher"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

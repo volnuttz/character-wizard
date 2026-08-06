@@ -1,15 +1,5 @@
-[workspace]
-members = [
-  "crates/srd-data",
-  "crates/domain",
-  "crates/creation",
-  "crates/pdf-renderer",
-  "crates/cli",
-  "crates/integration-tests",
-]
-resolver = "3"
-
-[workspace.package]
+[package]
+name = "character-wizard-cli"
 version = "0.4.0"
 edition = "2024"
 rust-version = "1.88"
@@ -17,26 +7,25 @@ license = "MIT"
 repository = "https://github.com/volnuttz/character-wizard"
 homepage = "https://github.com/volnuttz/character-wizard"
 authors = ["Cuauhtemoc Contreras <89711776+volnuttz@users.noreply.github.com>"]
+description = "Native level-1 SRD character creation CLI"
 
-[workspace.dependencies]
-lopdf = { version = "0.43.0", default-features = false }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
-sha2 = "0.11.0"
-rand = "0.10.2"
-clap = { version = "4.6.2", features = ["derive"] }
-inquire = "0.9.4"
-ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
-
-[workspace.lints.rust]
+[lints.rust]
 unsafe_code = "forbid"
 
-[workspace.lints.clippy]
+[lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 
-[profile.release]
-codegen-units = 1
-lto = true
-panic = "abort"
-strip = "symbols"
+[dependencies]
+clap = { version = "4.6.2", features = ["derive"] }
+inquire = "0.9.4"
+lopdf = { version = "0.43.0", default-features = false }
+rand = "0.10.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.11.0"
+ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
+
+[[bin]]
+name = "character-wizard"
+path = "src/main.rs"

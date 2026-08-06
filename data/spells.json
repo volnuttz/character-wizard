@@ -1,0 +1,674 @@
+{
+  "Acid Splash": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Alarm": {
+    "casting_time": "1 minute",
+    "concentration": false,
+    "notes": "Duration: 8 hours",
+    "range": "30 feet",
+    "required_material": "a bell and silver wire",
+    "ritual": true
+  },
+  "Animal Friendship": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 24 hours",
+    "range": "30 feet",
+    "required_material": "a morsel of food",
+    "ritual": false
+  },
+  "Bane": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "30 feet",
+    "required_material": "a drop of blood",
+    "ritual": false
+  },
+  "Bless": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "30 feet",
+    "required_material": "a Holy Symbol worth 5+ GP",
+    "ritual": false
+  },
+  "Burning Hands": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Charm Person": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Chill Touch": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Chromatic Orb": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "90 feet",
+    "required_material": "a diamond worth 50+ GP",
+    "ritual": false
+  },
+  "Color Spray": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": "a pinch of colorful sand",
+    "ritual": false
+  },
+  "Command": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Comprehend Languages": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "Self",
+    "required_material": "a pinch of soot and salt",
+    "ritual": true
+  },
+  "Create or Destroy Water": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "30 feet",
+    "required_material": "a mix of water and sand",
+    "ritual": false
+  },
+  "Cure Wounds": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Dancing Lights": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "120 feet",
+    "required_material": "a bit of phosphorus",
+    "ritual": false
+  },
+  "Detect Evil and Good": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Detect Magic": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "Self",
+    "required_material": null,
+    "ritual": true
+  },
+  "Detect Poison and Disease": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "Self",
+    "required_material": "a yew leaf",
+    "ritual": true
+  },
+  "Disguise Self": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Dissonant Whispers": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Divine Favor": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Divine Smite": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Druidcraft": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Eldritch Blast": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Elementalism": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Ensnaring Strike": {
+    "casting_time": "Bonus Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Entangle": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "90 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Expeditious Retreat": {
+    "casting_time": "Bonus Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Faerie Fire": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "False Life": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": "a drop of alcohol",
+    "ritual": false
+  },
+  "Feather Fall": {
+    "casting_time": "Reaction",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "60 feet",
+    "required_material": "a small feather or piece of down",
+    "ritual": false
+  },
+  "Find Familiar": {
+    "casting_time": "1 hour",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "10 feet",
+    "required_material": "burning incense worth 10+ GP, which the spell consumes",
+    "ritual": true
+  },
+  "Fire Bolt": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Floating Disk": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "30 feet",
+    "required_material": "a drop of mercury",
+    "ritual": true
+  },
+  "Fog Cloud": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 hour",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Goodberry": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 24 hours",
+    "range": "Self",
+    "required_material": "a sprig of mistletoe",
+    "ritual": false
+  },
+  "Grease": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "60 feet",
+    "required_material": "a bit of pork rind or butter",
+    "ritual": false
+  },
+  "Guidance": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Guiding Bolt": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 round",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Healing Word": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Hellish Rebuke": {
+    "casting_time": "Reaction",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Heroism": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Hex": {
+    "casting_time": "Bonus Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 hour",
+    "range": "90 feet",
+    "required_material": "the petrified eye of a newt",
+    "ritual": false
+  },
+  "Hideous Laughter": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "30 feet",
+    "required_material": "a tart and a feather",
+    "ritual": false
+  },
+  "Hunter's Mark": {
+    "casting_time": "Bonus Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 hour",
+    "range": "90 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Ice Knife": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": "a drop of water or a piece of ice",
+    "ritual": false
+  },
+  "Identify": {
+    "casting_time": "1 minute",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": "a pearl worth 100+ GP",
+    "ritual": true
+  },
+  "Illusory Script": {
+    "casting_time": "1 minute",
+    "concentration": false,
+    "notes": "Duration: 10 days",
+    "range": "Touch",
+    "required_material": "ink worth 10+ GP, which the spell consumes",
+    "ritual": true
+  },
+  "Inflict Wounds": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Jump": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "Touch",
+    "required_material": "a grasshopper's hind leg",
+    "ritual": false
+  },
+  "Light": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "Touch",
+    "required_material": "a firefly or phosphorescent moss",
+    "ritual": false
+  },
+  "Longstrider": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "Touch",
+    "required_material": "a pinch of dirt",
+    "ritual": false
+  },
+  "Mage Armor": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 8 hours",
+    "range": "Touch",
+    "required_material": "a piece of cured leather",
+    "ritual": false
+  },
+  "Mage Hand": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Magic Missile": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Mending": {
+    "casting_time": "1 minute",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": "two lodestones",
+    "ritual": false
+  },
+  "Message": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 round",
+    "range": "120 feet",
+    "required_material": "a copper wire",
+    "ritual": false
+  },
+  "Minor Illusion": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "30 feet",
+    "required_material": "a bit of fleece",
+    "ritual": false
+  },
+  "Poison Spray": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Prestidigitation": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Up to 1 hour",
+    "range": "10 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Produce Flame": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 10 minutes",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Protection from Evil and Good": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "Touch",
+    "required_material": "a flask of Holy Water worth 25+ GP, which the spell consumes",
+    "ritual": false
+  },
+  "Purify Food and Drink": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "10 feet",
+    "required_material": null,
+    "ritual": true
+  },
+  "Ray of Frost": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Ray of Sickness": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Resistance": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Sacred Flame": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Sanctuary": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "30 feet",
+    "required_material": "a shard of glass from a mirror",
+    "ritual": false
+  },
+  "Searing Smite": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Shield": {
+    "casting_time": "Reaction",
+    "concentration": false,
+    "notes": "Duration: 1 round",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "Shield of Faith": {
+    "casting_time": "Bonus Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "60 feet",
+    "required_material": "a prayer scroll",
+    "ritual": false
+  },
+  "Shillelagh": {
+    "casting_time": "Bonus Action",
+    "concentration": false,
+    "notes": "Duration: 1 minute",
+    "range": "Self",
+    "required_material": "mistletoe",
+    "ritual": false
+  },
+  "Shocking Grasp": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Touch",
+    "required_material": null,
+    "ritual": false
+  },
+  "Silent Image": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 10 minutes",
+    "range": "60 feet",
+    "required_material": "a bit of fleece",
+    "ritual": false
+  },
+  "Sleep": {
+    "casting_time": "Action",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "range": "60 feet",
+    "required_material": "a pinch of sand or rose petals",
+    "ritual": false
+  },
+  "Sorcerous Burst": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "120 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Spare the Dying": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "15 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Speak with Animals": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 10 minutes",
+    "range": "Self",
+    "required_material": null,
+    "ritual": true
+  },
+  "Starry Wisp": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Thaumaturgy": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Up to 1 minute",
+    "range": "30 feet",
+    "required_material": null,
+    "ritual": false
+  },
+  "Thunderwave": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": null,
+    "ritual": false
+  },
+  "True Strike": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "Self",
+    "required_material": "a weapon with which you have proficiency and that is worth 1+ CP",
+    "ritual": false
+  },
+  "Unseen Servant": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: 1 hour",
+    "range": "60 feet",
+    "required_material": "a bit of string and of wood",
+    "ritual": true
+  },
+  "Vicious Mockery": {
+    "casting_time": "Action",
+    "concentration": false,
+    "notes": "Duration: Instantaneous",
+    "range": "60 feet",
+    "required_material": null,
+    "ritual": false
+  }
+}
