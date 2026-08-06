@@ -16,7 +16,7 @@ implementation disagree.
 
 ## Current baseline
 
-Version: `0.4.0`
+Version: `0.5.0`
 
 The production repository now provides:
 
@@ -45,7 +45,7 @@ The production repository now provides:
 - [x] Optimized native executable builds and platform archives
 - [x] MIT license and complete package metadata
 - [x] Standalone native operation without Python, uv, or extraction overhead
-- [x] Published v0.3.0 standalone executables and SHA-256 files for Linux x86-64,
+- [x] Published v0.4.0 standalone executables and SHA-256 files for Linux x86-64,
   Windows x86-64, macOS Apple Silicon, and macOS Intel
 - [x] rustfmt, Clippy, Cargo tests/audit/deny, coverage, and repository guidance
 

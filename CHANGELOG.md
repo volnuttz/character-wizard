@@ -5,6 +5,24 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-06
+
+### Changed
+
+- Renamed the project, executable, native archives, cache environment variable,
+  repository metadata, and user-facing documentation from `pc-wizard` to
+  `character-wizard`.
+- Consolidated the migration-era Cargo workspace into one
+  `character-wizard-cli` binary crate with encapsulated SRD data, domain,
+  creation, template-resolution, PDF-renderer, and CLI modules.
+- Moved the embedded spell catalog into `data/spells.json` while preserving its
+  compile-time inclusion in the native executable.
+- Updated contributor guidance and repository skills for the single-crate Rust
+  layout, current module paths, focused test commands, and release naming.
+
+This release does not intentionally change the canonical character JSON schema,
+SRD rules, interactive creation behavior, or rendered character-sheet values.
+
 ## [0.4.0] - 2026-07-16
 
 ### Added
@@ -215,9 +233,10 @@ This release contains no user-facing character-creation or PDF-output changes.
   executables with SHA-256 files.
 - Cross-platform quality, native-binary, and tag-triggered GitHub Release jobs.
 
-[Unreleased]: https://github.com/volnuttz/pc-wizard/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/volnuttz/pc-wizard/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/volnuttz/pc-wizard/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/volnuttz/pc-wizard/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/volnuttz/pc-wizard/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/volnuttz/pc-wizard/releases/tag/v0.1.0
+[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/volnuttz/character-wizard/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/volnuttz/character-wizard/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/volnuttz/character-wizard/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/volnuttz/character-wizard/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/volnuttz/character-wizard/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/volnuttz/character-wizard/releases/tag/v0.1.0
