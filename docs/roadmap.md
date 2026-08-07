@@ -1,6 +1,6 @@
 # character-wizard project roadmap
 
-Last reviewed: 2026-08-06
+Last reviewed: 2026-08-07
 
 This document records the current project state, known gaps, planned phases, and
 completion criteria. Update it when a task is completed, reprioritized, added, or
@@ -471,6 +471,87 @@ Exit criteria:
    Rust architecture and PDF stack.
 8. [x] Migrate production to Rust in compatibility-tested vertical slices; retain
    the rollback oracle through the first stable native release, then retire it.
+
+## Future product milestones
+
+These milestones expand character-wizard beyond initial level-1 creation while
+preserving JSON files as portable, canonical character records. They are ordered
+by user value and implementation dependency; detailed version assignment remains
+subject to release planning.
+
+### Phase 9: Character management
+
+Goal: let users manage and revise completed characters without recreating them.
+
+- [ ] Add `edit <character.json>` with a section-based editor for identity,
+  species, background, ability scores, class, skills, equipment, spells,
+  personality details, and review.
+- [ ] Recompute derived values, validate the completed character, save canonical
+  JSON, and optionally regenerate its PDF after an edit.
+- [ ] Add an explicit `render` command for regenerating a character sheet from a
+  saved character record.
+- [ ] Add an optional default character directory while retaining direct use of
+  plain JSON files.
+- [ ] Add collection commands: `list`, `show <name>`, `edit <name>`, and
+  `render <name>` for characters in that directory.
+
+Exit criteria:
+
+- Users can revise, validate, save, inspect, and render a completed character
+  without repeating the full creation flow.
+- Direct JSON-file workflows remain supported and no database is required.
+
+### Phase 10: Quick character creation
+
+Goal: generate playable, valid level-1 SRD characters quickly for one-shots and
+other rapid-use cases.
+
+- [ ] Add `random` generation using the existing domain constraints and SRD data.
+- [ ] Support constraints such as `--class` and `--species` when generating a
+  random character.
+- [ ] Add `create --quick` with a concise generated-character review and reroll,
+  edit, or accept actions.
+- [ ] Cover random and constrained generation with deterministic test seams and
+  validation tests for every emitted character.
+
+Exit criteria:
+
+- A user can produce a valid, complete level-1 character from one command, with
+  optional class and species constraints.
+
+### Phase 11: Extensible content packs
+
+Goal: permit opt-in campaign content without mixing non-SRD material into the
+built-in SRD catalog.
+
+- [ ] Define a versioned, documented data-pack format for compatible species,
+  backgrounds, equipment, spells, and other supported catalog records.
+- [ ] Add `--data <directory>` to load and validate an explicit campaign pack.
+- [ ] Keep built-in content strictly sourced from the supplied SRD and separate
+  pack provenance from canonical character data.
+- [ ] Define conflicts, stable identifiers, validation, and PDF-rendering
+  behavior for pack-provided content.
+
+Exit criteria:
+
+- Users can create and render characters with a validated external campaign pack
+  while default installations remain SRD-only and self-contained.
+
+### Phase 12: Portable character sharing
+
+Goal: make it easy to send and receive characters in CLI-native channels without
+replacing the canonical JSON-file workflow.
+
+- [ ] Add `export <character.json> --share` to produce a compact, versioned
+  share representation.
+- [ ] Add `import <code>` to validate, decode, and save a shared character.
+- [ ] Specify format versioning, size limits, validation errors, and clear
+  guidance that shared content is untrusted input.
+
+Exit criteria:
+
+- A user can share a completed character as a compact code and import it into a
+  valid canonical JSON record.
 
 Prefer vertical slices after packaging. For example, complete Fighter choices,
 equipment, calculations, PDF fields, and tests together rather than adding every
