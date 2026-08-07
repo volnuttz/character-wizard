@@ -490,9 +490,9 @@ Goal: let users manage and revise completed characters without recreating them.
   JSON, and optionally regenerate its PDF after an edit.
 - [x] Add an explicit `render` command for regenerating a character sheet from a
   saved character record.
-- [ ] Add an optional default character directory while retaining direct use of
+- [x] Add an optional default character directory while retaining direct use of
   plain JSON files.
-- [ ] Add collection commands: `list`, `show <name>`, `edit <name>`, and
+- [x] Add collection commands: `list`, `show <name>`, `edit <name>`, and
   `render <name>` for characters in that directory.
 
 Exit criteria:

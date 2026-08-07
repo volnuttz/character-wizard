@@ -36,8 +36,9 @@ enum Command {
     Create(CreateArgs),
     Edit(EditArgs),
     Render(RenderArgs),
+    List(ListArgs),
     Validate { character_json: PathBuf },
-    Show { character_json: PathBuf },
+    Show(ShowArgs),
 }
 
 #[derive(Args)]
@@ -67,8 +68,8 @@ struct CreateArgs {
 
 #[derive(Args)]
 struct EditArgs {
-    #[arg(value_name = "CHARACTER_JSON")]
-    character_json: PathBuf,
+    #[command(flatten)]
+    character: CharacterRefArgs,
     #[arg(long, help = "Render the edited character to this PDF path")]
     output: Option<PathBuf>,
     #[arg(long, requires = "output")]
@@ -79,8 +80,8 @@ struct EditArgs {
 
 #[derive(Args)]
 struct RenderArgs {
-    #[arg(value_name = "CHARACTER_JSON")]
-    character_json: PathBuf,
+    #[command(flatten)]
+    character: CharacterRefArgs,
     #[arg(long)]
     template: Option<PathBuf>,
     #[arg(
@@ -92,6 +93,34 @@ struct RenderArgs {
     output: Option<PathBuf>,
     #[arg(long)]
     force: bool,
+}
+
+#[derive(Args)]
+struct ShowArgs {
+    #[command(flatten)]
+    character: CharacterRefArgs,
+}
+
+#[derive(Args)]
+struct CharacterRefArgs {
+    #[arg(value_name = "CHARACTER")]
+    character: PathBuf,
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Character collection directory (defaults to ./characters)"
+    )]
+    directory: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct ListArgs {
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Character collection directory (defaults to ./characters)"
+    )]
+    directory: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -112,13 +141,33 @@ fn run(cli: Cli) -> CliResult {
         Command::Create(options) => create(options),
         Command::Edit(options) => edit(options),
         Command::Render(options) => render(options),
+        Command::List(options) => list(&options),
         Command::Validate { character_json } => validate(&character_json),
-        Command::Show { character_json } => show(&character_json),
+        Command::Show(options) => show(&resolve_character_path(&options.character)),
     }
 }
 
+const DEFAULT_CHARACTER_DIRECTORY: &str = "characters";
+
+fn list(options: &ListArgs) -> CliResult {
+    let directory = collection_directory(options.directory.as_deref());
+    let characters = collection_characters(&directory)?;
+    if characters.is_empty() {
+        println!("No characters found in {}.", directory.display());
+        return Ok(());
+    }
+    println!("NAME\tCLASS\tLEVEL\tSPECIES");
+    for character in characters {
+        println!(
+            "{}\t{}\t{}\t{}",
+            character.name, character.character_class, character.level, character.species
+        );
+    }
+    Ok(())
+}
+
 fn render(options: RenderArgs) -> CliResult {
-    let character = load_character(&options.character_json)?;
+    let character = load_character(&resolve_character_path(&options.character))?;
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
     let output = options
         .output
@@ -132,7 +181,8 @@ fn render(options: RenderArgs) -> CliResult {
 }
 
 fn edit(options: EditArgs) -> CliResult {
-    let character = load_character(&options.character_json)?;
+    let character_path = resolve_character_path(&options.character);
+    let character = load_character(&character_path)?;
     let Some(edited) = character_wizard_creation::run_edit_interactive(&character)
         .map_err(|error| (1, error.to_string()))?
     else {
@@ -145,23 +195,20 @@ fn edit(options: EditArgs) -> CliResult {
         .map(|_| resolve_template(options.template.as_deref()))
         .transpose()
         .map_err(|error| (1, error))?;
-    let mut outputs = vec![options.character_json.as_path()];
+    let mut outputs = vec![character_path.as_path()];
     if let Some(output) = options.output.as_deref() {
         outputs.push(output);
     }
     confirm_overwrite(&outputs, options.force)?;
-    create_parent(&options.character_json)?;
+    create_parent(&character_path)?;
     fs::write(
-        &options.character_json,
+        &character_path,
         edited.to_json().map_err(|error| (1, error))?,
     )
     .map_err(|error| {
         (
             1,
-            format!(
-                "unable to write {}: {error}",
-                options.character_json.display()
-            ),
+            format!("unable to write {}: {error}", character_path.display()),
         )
     })?;
     if let Some(output) = options.output {
@@ -178,7 +225,7 @@ fn edit(options: EditArgs) -> CliResult {
         println!("PDF: {}", output.display());
     }
     println!("{} updated.", edited.name);
-    println!("JSON: {}", options.character_json.display());
+    println!("JSON: {}", character_path.display());
     Ok(())
 }
 
@@ -290,6 +337,68 @@ fn character_output_path(name: &str, extension: &str) -> PathBuf {
     PathBuf::from(format!("{stem}.{extension}"))
 }
 
+fn collection_directory(directory: Option<&Path>) -> PathBuf {
+    directory.map_or_else(
+        || PathBuf::from(DEFAULT_CHARACTER_DIRECTORY),
+        Path::to_path_buf,
+    )
+}
+
+fn resolve_character_path(character: &CharacterRefArgs) -> PathBuf {
+    if character.character.is_file()
+        || character.character.extension().is_some()
+        || character.character.components().count() > 1
+    {
+        return character.character.clone();
+    }
+    collection_directory(character.directory.as_deref())
+        .join(&character.character)
+        .with_extension("json")
+}
+
+fn collection_characters(directory: &Path) -> Result<Vec<Character>, (u8, String)> {
+    if !directory.exists() {
+        return Ok(Vec::new());
+    }
+    if !directory.is_dir() {
+        return Err((
+            1,
+            format!(
+                "character collection is not a directory: {}",
+                directory.display()
+            ),
+        ));
+    }
+    let mut paths = fs::read_dir(directory)
+        .map_err(|error| {
+            (
+                1,
+                format!("unable to read {}: {error}", directory.display()),
+            )
+        })?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| {
+            (
+                1,
+                format!("unable to read {}: {error}", directory.display()),
+            )
+        })?
+        .into_iter()
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == "json")
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| load_character(&path))
+        .collect()
+}
+
 fn load_character(path: &Path) -> Result<Character, (u8, String)> {
     if !path.is_file() {
         return Err((
@@ -364,7 +473,10 @@ mod tests {
 
     use clap::Parser as _;
 
-    use super::{Cli, Command, RenderArgs, character_output_path, render};
+    use super::{
+        CharacterRefArgs, Cli, Command, RenderArgs, character_output_path, collection_characters,
+        render, resolve_character_path,
+    };
 
     #[test]
     fn clap_accepts_the_version_flag() {
@@ -422,7 +534,7 @@ mod tests {
             panic!("expected edit command");
         };
         assert_eq!(
-            options.character_json,
+            options.character.character,
             PathBuf::from("records/legolas.json")
         );
         assert_eq!(
@@ -450,7 +562,7 @@ mod tests {
             panic!("expected render command");
         };
         assert_eq!(
-            options.character_json,
+            options.character.character,
             PathBuf::from("records/legolas.json")
         );
         assert_eq!(
@@ -470,7 +582,10 @@ mod tests {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         render(RenderArgs {
-            character_json: PathBuf::from("fixtures/complete-character.json"),
+            character: CharacterRefArgs {
+                character: PathBuf::from("fixtures/complete-character.json"),
+                directory: None,
+            },
             template: Some(PathBuf::from("assets/character-sheet.pdf")),
             output: Some(output.clone()),
             force: true,
@@ -478,6 +593,40 @@ mod tests {
         .expect("render fixture");
         assert!(output.is_file());
         std::fs::remove_file(output).expect("remove rendered PDF");
+    }
+
+    #[test]
+    fn a_bare_name_resolves_from_the_selected_collection_directory() {
+        let character = CharacterRefArgs {
+            character: PathBuf::from("legolas"),
+            directory: Some(PathBuf::from("party")),
+        };
+        assert_eq!(
+            resolve_character_path(&character),
+            PathBuf::from("party/legolas.json")
+        );
+    }
+
+    #[test]
+    fn collection_listing_loads_json_characters_in_path_order() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let directory = std::env::temp_dir().join(format!(
+            "character-wizard-collection-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&directory).expect("create collection");
+        std::fs::write(
+            directory.join("rogue.json"),
+            include_str!("../fixtures/complete-character.json"),
+        )
+        .expect("write character");
+        std::fs::write(directory.join("notes.txt"), "not a character").expect("write note");
+
+        let characters = collection_characters(&directory).expect("load collection");
+        std::fs::remove_dir_all(&directory).expect("remove collection");
+        assert_eq!(characters.len(), 1);
+        assert_eq!(characters[0].name, "Binary Smoke Test");
     }
 
     #[test]
