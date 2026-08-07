@@ -35,6 +35,7 @@ struct Cli {
 enum Command {
     Create(CreateArgs),
     Edit(EditArgs),
+    Render(RenderArgs),
     Validate { character_json: PathBuf },
     Show { character_json: PathBuf },
 }
@@ -76,6 +77,23 @@ struct EditArgs {
     force: bool,
 }
 
+#[derive(Args)]
+struct RenderArgs {
+    #[arg(value_name = "CHARACTER_JSON")]
+    character_json: PathBuf,
+    #[arg(long)]
+    template: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        value_name = "PATH",
+        help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
+    )]
+    output: Option<PathBuf>,
+    #[arg(long)]
+    force: bool,
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse_from(env::args_os());
     match run(cli) {
@@ -93,9 +111,24 @@ fn run(cli: Cli) -> CliResult {
     match cli.command {
         Command::Create(options) => create(options),
         Command::Edit(options) => edit(options),
+        Command::Render(options) => render(options),
         Command::Validate { character_json } => validate(&character_json),
         Command::Show { character_json } => show(&character_json),
     }
+}
+
+fn render(options: RenderArgs) -> CliResult {
+    let character = load_character(&options.character_json)?;
+    let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
+    let output = options
+        .output
+        .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
+    confirm_overwrite(&[&output], options.force)?;
+    create_parent(&output)?;
+    character_wizard_pdf_renderer::render_character(&character, &template, &output)
+        .map_err(|error| (1, error))?;
+    println!("PDF: {}", output.display());
+    Ok(())
 }
 
 fn edit(options: EditArgs) -> CliResult {
@@ -324,11 +357,14 @@ fn languages(character: &Character) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     use clap::Parser as _;
 
-    use super::{Cli, Command, character_output_path};
+    use super::{Cli, Command, RenderArgs, character_output_path, render};
 
     #[test]
     fn clap_accepts_the_version_flag() {
@@ -395,6 +431,53 @@ mod tests {
         );
         assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
         assert!(options.force);
+    }
+
+    #[test]
+    fn render_accepts_explicit_paths() {
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "render",
+            "records/legolas.json",
+            "--template",
+            "assets/character-sheet.pdf",
+            "--output",
+            "sheets/legolas.pdf",
+            "--force",
+        ])
+        .expect("parse render");
+        let Command::Render(options) = cli.command else {
+            panic!("expected render command");
+        };
+        assert_eq!(
+            options.character_json,
+            PathBuf::from("records/legolas.json")
+        );
+        assert_eq!(
+            options.template,
+            Some(PathBuf::from("assets/character-sheet.pdf"))
+        );
+        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert!(options.force);
+    }
+
+    #[test]
+    fn render_writes_a_pdf_for_a_valid_character() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let output = std::env::temp_dir().join(format!(
+            "character-wizard-render-test-{}-{}.pdf",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        render(RenderArgs {
+            character_json: PathBuf::from("fixtures/complete-character.json"),
+            template: Some(PathBuf::from("assets/character-sheet.pdf")),
+            output: Some(output.clone()),
+            force: true,
+        })
+        .expect("render fixture");
+        assert!(output.is_file());
+        std::fs::remove_file(output).expect("remove rendered PDF");
     }
 
     #[test]

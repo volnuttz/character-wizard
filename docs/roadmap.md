@@ -488,7 +488,7 @@ Goal: let users manage and revise completed characters without recreating them.
   personality details, and review.
 - [x] Recompute derived values, validate the completed character, save canonical
   JSON, and optionally regenerate its PDF after an edit.
-- [ ] Add an explicit `render` command for regenerating a character sheet from a
+- [x] Add an explicit `render` command for regenerating a character sheet from a
   saved character record.
 - [ ] Add an optional default character directory while retaining direct use of
   plain JSON files.
