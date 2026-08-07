@@ -7,10 +7,11 @@ use std::{
     process::ExitCode,
 };
 
-use crate::character_wizard_domain::Character;
+use crate::character_wizard_domain::{Character, DataPackReference};
 use clap::{Args, Parser, Subcommand};
 
 pub mod creation;
+mod data_pack;
 pub mod domain;
 pub mod pdf_renderer;
 pub mod srd_data;
@@ -27,6 +28,13 @@ use template::resolve_template;
 #[derive(Parser)]
 #[command(about = "Create D&D characters using SRD 5.2.1.", version)]
 struct Cli {
+    #[arg(
+        long,
+        global = true,
+        value_name = "DIRECTORY",
+        help = "Validated external campaign data pack directory"
+    )]
+    data: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -165,34 +173,55 @@ fn main() -> ExitCode {
 type CliResult = Result<(), (u8, String)>;
 
 fn run(cli: Cli) -> CliResult {
+    let pack = cli
+        .data
+        .as_deref()
+        .map(data_pack::load)
+        .transpose()
+        .map_err(|error| (1, error))?;
+    if let Some(pack) = &pack {
+        println!("Using data pack: {} ({})", pack.name, pack.id);
+    }
     match cli.command {
-        Command::Create(options) => create(options),
-        Command::Random(options) => random(options),
-        Command::Edit(options) => edit(options),
-        Command::Render(options) => render(options),
-        Command::List(options) => list(&options),
-        Command::Validate { character_json } => validate(&character_json),
-        Command::Show(options) => show(&resolve_character_path(&options.character)),
+        Command::Create(options) => create(options, pack.as_ref()),
+        Command::Random(options) => random(options, pack.as_ref()),
+        Command::Edit(options) => edit(options, pack.as_ref()),
+        Command::Render(options) => render(options, pack.as_ref()),
+        Command::List(options) => list(&options, pack.as_ref()),
+        Command::Validate { character_json } => validate(&character_json, pack.as_ref()),
+        Command::Show(options) => show(&resolve_character_path(&options.character), pack.as_ref()),
     }
 }
 
-fn random(options: RandomArgs) -> CliResult {
+fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
     let character_class = options
         .class_name
         .as_deref()
         .map(|value| canonical_srd_choice(value, &character_wizard_srd_data::CLASS_NAMES, "class"))
         .transpose()?;
-    let species = options
-        .species
-        .as_deref()
-        .map(|value| {
-            canonical_srd_choice(value, &character_wizard_srd_data::SPECIES_NAMES, "species")
+    let requested_species = options.species.as_deref();
+    let custom_species = requested_species.and_then(|value| {
+        pack.and_then(|pack| {
+            pack.species.iter().find(|rule| {
+                rule.id.eq_ignore_ascii_case(value) || rule.name.eq_ignore_ascii_case(value)
+            })
         })
-        .transpose()?;
+    });
+    let species = if custom_species.is_some() {
+        requested_species.map(str::to_owned)
+    } else {
+        requested_species
+            .map(|value| {
+                canonical_srd_choice(value, &character_wizard_srd_data::SPECIES_NAMES, "species")
+            })
+            .transpose()?
+    };
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
-    let character = character_wizard_creation::generate_random_character(
+    let character = character_wizard_creation::generate_random_character_with_pack(
         character_class.as_deref(),
         species.as_deref(),
+        pack.map(data_pack_reference),
+        pack.map_or(&[], |pack| pack.species.as_slice()),
     )
     .map_err(|error| (1, error.to_string()))?;
     let json_output = options
@@ -228,9 +257,9 @@ fn random(options: RandomArgs) -> CliResult {
 
 const DEFAULT_CHARACTER_DIRECTORY: &str = "characters";
 
-fn list(options: &ListArgs) -> CliResult {
+fn list(options: &ListArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
     let directory = collection_directory(options.directory.as_deref());
-    let characters = collection_characters(&directory)?;
+    let characters = collection_characters(&directory, pack)?;
     if characters.is_empty() {
         println!("No characters found in {}.", directory.display());
         return Ok(());
@@ -239,14 +268,17 @@ fn list(options: &ListArgs) -> CliResult {
     for character in characters {
         println!(
             "{}\t{}\t{}\t{}",
-            character.name, character.character_class, character.level, character.species
+            character.name,
+            character.character_class,
+            character.level,
+            character.species_name()
         );
     }
     Ok(())
 }
 
-fn render(options: RenderArgs) -> CliResult {
-    let character = load_character(&resolve_character_path(&options.character))?;
+fn render(options: RenderArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
+    let character = load_character(&resolve_character_path(&options.character), pack)?;
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
     let output = options
         .output
@@ -259,15 +291,20 @@ fn render(options: RenderArgs) -> CliResult {
     Ok(())
 }
 
-fn edit(options: EditArgs) -> CliResult {
+fn edit(options: EditArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
     let character_path = resolve_character_path(&options.character);
-    let character = load_character(&character_path)?;
-    let Some(edited) = character_wizard_creation::run_edit_interactive(&character)
-        .map_err(|error| (1, error.to_string()))?
+    let character = load_character(&character_path, pack)?;
+    let Some(mut edited) = character_wizard_creation::run_edit_interactive_with_pack(
+        &character,
+        pack.map_or(&[], |pack| pack.species.as_slice()),
+    )
+    .map_err(|error| (1, error.to_string()))?
     else {
         println!("No changes saved.");
         return Ok(());
     };
+    edited.data_pack.clone_from(&character.data_pack);
+    resolve_pack_species(&mut edited, pack)?;
     let template = options
         .output
         .as_ref()
@@ -308,18 +345,20 @@ fn edit(options: EditArgs) -> CliResult {
     Ok(())
 }
 
-fn validate(path: &Path) -> CliResult {
-    let character = load_character(path)?;
+fn validate(path: &Path, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
+    let character = load_character(path, pack)?;
     println!("{} is valid.", character.name);
     Ok(())
 }
 
-fn show(path: &Path) -> CliResult {
-    let character = load_character(path)?;
+fn show(path: &Path, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
+    let character = load_character(path, pack)?;
     println!("{}", character.name);
     println!(
         "Identity      Level {} {} {}",
-        character.level, character.species, character.character_class
+        character.level,
+        character.species_name(),
+        character.character_class
     );
     println!("Background    {}", character.background);
     println!("Alignment     {}", character.alignment);
@@ -341,22 +380,30 @@ fn show(path: &Path) -> CliResult {
     Ok(())
 }
 
-fn create(options: CreateArgs) -> CliResult {
+fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
+    let pack_reference = pack.map(data_pack_reference);
 
     let mut completed_draft = None;
-    let character = if let Some(source) = options.from_json {
-        load_character(&source)?
+    let mut character = if let Some(source) = options.from_json {
+        load_character(&source, pack)?
     } else if options.quick {
-        character_wizard_creation::run_quick_interactive()
-            .map_err(|error| (1, error.to_string()))?
+        character_wizard_creation::run_quick_interactive_with_pack(
+            pack_reference.as_ref(),
+            pack.map_or(&[], |pack| pack.species.as_slice()),
+        )
+        .map_err(|error| (1, error.to_string()))?
     } else {
         let draft = options.draft;
         println!(
             "Progress is checkpointed in {}; Ctrl-C keeps the latest completed stage.",
             draft.display()
         );
-        match character_wizard_creation::run_interactive(&draft) {
+        match character_wizard_creation::run_interactive_with_pack(
+            &draft,
+            pack_reference.clone(),
+            pack.map_or(&[], |pack| pack.species.as_slice()),
+        ) {
             Ok(character) => {
                 completed_draft = Some(draft);
                 character
@@ -368,6 +415,8 @@ fn create(options: CreateArgs) -> CliResult {
             Err(error) => return Err((1, error.to_string())),
         }
     };
+    set_data_pack(&mut character, pack);
+    resolve_pack_species(&mut character, pack)?;
     let json_output = options
         .json
         .unwrap_or_else(|| character_output_path(&character.name, "json"));
@@ -456,7 +505,10 @@ fn resolve_character_path(character: &CharacterRefArgs) -> PathBuf {
         .with_extension("json")
 }
 
-fn collection_characters(directory: &Path) -> Result<Vec<Character>, (u8, String)> {
+fn collection_characters(
+    directory: &Path,
+    pack: Option<&data_pack::DataPackManifest>,
+) -> Result<Vec<Character>, (u8, String)> {
     if !directory.exists() {
         return Ok(Vec::new());
     }
@@ -495,11 +547,14 @@ fn collection_characters(directory: &Path) -> Result<Vec<Character>, (u8, String
     paths.sort();
     paths
         .into_iter()
-        .map(|path| load_character(&path))
+        .map(|path| load_character(&path, pack))
         .collect()
 }
 
-fn load_character(path: &Path) -> Result<Character, (u8, String)> {
+fn load_character(
+    path: &Path,
+    pack: Option<&data_pack::DataPackManifest>,
+) -> Result<Character, (u8, String)> {
     if !path.is_file() {
         return Err((
             1,
@@ -511,12 +566,82 @@ fn load_character(path: &Path) -> Result<Character, (u8, String)> {
     }
     let source = fs::read_to_string(path)
         .map_err(|error| (1, format!("unable to read {}: {error}", path.display())))?;
-    Character::from_json(&source).map_err(|error| {
+    let mut character = Character::from_json(&source).map_err(|error| {
         (
             1,
             format!("invalid character JSON {}: {error}", path.display()),
         )
-    })
+    })?;
+    ensure_data_pack(&character, pack)?;
+    resolve_pack_species(&mut character, pack)?;
+    Ok(character)
+}
+
+fn set_data_pack(character: &mut Character, pack: Option<&data_pack::DataPackManifest>) {
+    character.data_pack = pack.map(data_pack_reference);
+}
+
+fn data_pack_reference(pack: &data_pack::DataPackManifest) -> DataPackReference {
+    DataPackReference {
+        id: pack.id.clone(),
+        format_version: pack.format_version,
+        version: pack.version,
+    }
+}
+
+fn ensure_data_pack(
+    character: &Character,
+    pack: Option<&data_pack::DataPackManifest>,
+) -> CliResult {
+    let Some(reference) = &character.data_pack else {
+        return Ok(());
+    };
+    let Some(pack) = pack else {
+        return Err((
+            1,
+            format!(
+                "character requires data pack {}; pass --data <directory>",
+                reference.id
+            ),
+        ));
+    };
+    if reference.id != pack.id
+        || reference.format_version != pack.format_version
+        || reference.version != pack.version
+    {
+        return Err((
+            1,
+            format!(
+                "character requires data pack {} version {} (format version {})",
+                reference.id, reference.version, reference.format_version
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn resolve_pack_species(
+    character: &mut Character,
+    pack: Option<&data_pack::DataPackManifest>,
+) -> CliResult {
+    if character_wizard_srd_data::species_rule(&character.species).is_some() {
+        character
+            .resolve_pack_species(&[])
+            .map_err(|error| (1, error))?;
+        return Ok(());
+    }
+    let pack = pack.ok_or_else(|| {
+        (
+            1,
+            format!(
+                "pack species {} requires --data <directory>",
+                character.species
+            ),
+        )
+    })?;
+    character
+        .resolve_pack_species(&pack.species)
+        .map_err(|error| (1, format!("{error} in data pack {}", pack.id)))
 }
 
 fn confirm_overwrite(paths: &[&Path], force: bool) -> CliResult {
@@ -574,8 +699,9 @@ mod tests {
     use clap::Parser as _;
 
     use super::{
-        CharacterRefArgs, Cli, Command, RenderArgs, canonical_srd_choice, character_output_path,
-        collection_characters, render, resolve_character_path,
+        CharacterRefArgs, Cli, Command, RandomArgs, RenderArgs, canonical_srd_choice,
+        character_output_path, collection_characters, load_character, random, render,
+        resolve_character_path,
     };
 
     #[test]
@@ -665,6 +791,14 @@ mod tests {
     }
 
     #[test]
+    fn global_data_pack_option_is_available_after_a_command() {
+        let cli = Cli::try_parse_from(["character-wizard", "random", "--data", "my-campaign"])
+            .expect("parse data pack option");
+        assert_eq!(cli.data, Some(PathBuf::from("my-campaign")));
+        assert!(matches!(cli.command, Command::Random(_)));
+    }
+
+    #[test]
     fn edit_accepts_an_optional_pdf_output() {
         let cli = Cli::try_parse_from([
             "character-wizard",
@@ -728,18 +862,88 @@ mod tests {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
-        render(RenderArgs {
-            character: CharacterRefArgs {
-                character: PathBuf::from("fixtures/complete-character.json"),
-                directory: None,
+        render(
+            RenderArgs {
+                character: CharacterRefArgs {
+                    character: PathBuf::from("fixtures/complete-character.json"),
+                    directory: None,
+                },
+                template: Some(PathBuf::from("assets/character-sheet.pdf")),
+                output: Some(output.clone()),
+                force: true,
             },
-            template: Some(PathBuf::from("assets/character-sheet.pdf")),
-            output: Some(output.clone()),
-            force: true,
-        })
+            None,
+        )
         .expect("render fixture");
         assert!(output.is_file());
         std::fs::remove_file(output).expect("remove rendered PDF");
+    }
+
+    #[test]
+    fn random_pack_species_round_trips_and_renders_its_mechanics() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let directory = std::env::temp_dir().join(format!(
+            "character-wizard-pack-species-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&directory).expect("create pack");
+        std::fs::write(
+            directory.join("data-pack.json"),
+            r#"{"format_version":1,"id":"moon-pack","version":1,"name":"Moon Pack","files":{"species":"species.json"}}"#,
+        )
+        .expect("write manifest");
+        std::fs::write(
+            directory.join("species.json"),
+            r#"[{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"darkvision_range":60,"traits":["Moonlit Step"]}]"#,
+        )
+        .expect("write species");
+        let pack = crate::data_pack::load(&directory).expect("load pack");
+        let json = directory.join("moonfolk.json");
+        let pdf = directory.join("moonfolk.pdf");
+        random(
+            RandomArgs {
+                class_name: Some("fighter".to_owned()),
+                species: Some("moonfolk".to_owned()),
+                template: Some(PathBuf::from("assets/character-sheet.pdf")),
+                json: Some(json.clone()),
+                output: Some(pdf.clone()),
+                force: true,
+            },
+            Some(&pack),
+        )
+        .expect("generate pack species");
+
+        assert!(
+            load_character(&json, None)
+                .expect_err("pack reference is required")
+                .1
+                .contains("requires data pack moon-pack")
+        );
+        let character = load_character(&json, Some(&pack)).expect("reload pack character");
+        assert_eq!(
+            character
+                .data_pack
+                .as_ref()
+                .expect("pack reference")
+                .version,
+            1
+        );
+        assert_eq!(character.species, "moonfolk");
+        assert_eq!(character.species_name(), "Moonfolk");
+        assert_eq!(character.size, "Small");
+        assert_eq!(character.speed(), 35);
+        assert_eq!(character.darkvision_range(), Some(60));
+        assert!(
+            character
+                .species_traits()
+                .iter()
+                .any(|value| value == "Moonlit Step")
+        );
+        let field = crate::character_wizard_pdf_renderer::read_field_value(&pdf, "Text8")
+            .expect("read species field");
+        assert_eq!(field.as_str().expect("text value"), b"Moonfolk");
+        std::fs::remove_dir_all(directory).expect("remove pack");
     }
 
     #[test]
@@ -770,7 +974,7 @@ mod tests {
         .expect("write character");
         std::fs::write(directory.join("notes.txt"), "not a character").expect("write note");
 
-        let characters = collection_characters(&directory).expect("load collection");
+        let characters = collection_characters(&directory, None).expect("load collection");
         std::fs::remove_dir_all(&directory).expect("remove collection");
         assert_eq!(characters.len(), 1);
         assert_eq!(characters[0].name, "Binary Smoke Test");

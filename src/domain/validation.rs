@@ -6,9 +6,33 @@ use crate::character_wizard_srd_data as srd;
 
 use crate::domain::CharacterSheet;
 
-use super::record::Character;
+use super::record::{Character, PackSpecies};
 
 impl Character {
+    /// Resolve and validate external species mechanics for this character.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a pack species ID is missing or its size is invalid.
+    pub fn resolve_pack_species(&mut self, species: &[PackSpecies]) -> Result<(), String> {
+        if srd::species_rule(&self.species).is_some() {
+            self.resolved_pack_species = None;
+            return Ok(());
+        }
+        let rule = species
+            .iter()
+            .find(|rule| rule.id == self.species.as_str())
+            .ok_or_else(|| format!("unknown species in data pack: {}", self.species))?;
+        if !rule.sizes.contains(&self.size) {
+            return Err(format!(
+                "invalid size for pack species {}: {}",
+                rule.id, self.size
+            ));
+        }
+        self.resolved_pack_species = Some(rule.clone());
+        Ok(())
+    }
+
     /// Return calculated values intended for character-sheet adapters.
     #[must_use]
     pub const fn sheet(&self) -> CharacterSheet<'_> {
@@ -69,7 +93,7 @@ impl Character {
         if srd::background_rule(&self.background).is_none() {
             return Err(format!("unknown SRD background: {}", self.background));
         }
-        if srd::species_rule(&self.species).is_none() {
+        if srd::species_rule(&self.species).is_none() && self.data_pack.is_none() {
             return Err(format!("unknown SRD species: {}", self.species));
         }
         if self
@@ -95,7 +119,23 @@ impl Character {
 
     #[allow(clippy::too_many_lines)]
     fn validate_species_choices(&self) -> Result<(), String> {
-        let species = srd::species_rule(&self.species).expect("validated species");
+        let Some(species) = srd::species_rule(&self.species) else {
+            if self.dragonborn_ancestry.is_some()
+                || self.elf_lineage.is_some()
+                || self.elf_spellcasting_ability.is_some()
+                || self.elf_keen_senses_skill.is_some()
+                || self.gnome_lineage.is_some()
+                || self.gnome_spellcasting_ability.is_some()
+                || self.goliath_ancestry.is_some()
+                || self.human_skill.is_some()
+                || self.human_origin_feat.is_some()
+                || self.tiefling_legacy.is_some()
+                || self.tiefling_spellcasting_ability.is_some()
+            {
+                return Err("SRD species subchoices are invalid for pack species".to_owned());
+            }
+            return Ok(());
+        };
         if !species.sizes.contains(&self.size.as_str()) {
             return Err(format!("invalid size for {}: {}", self.species, self.size));
         }

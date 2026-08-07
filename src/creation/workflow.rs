@@ -4,7 +4,7 @@ use std::{cell::Cell, collections::BTreeSet, fs, path::Path};
 
 use crate::character_wizard_domain::{
     AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores, BackgroundAbilityAdjustment,
-    Character, ClassChoices, MagicInitiateChoice,
+    Character, ClassChoices, DataPackReference, MagicInitiateChoice, PackSpecies,
 };
 use rand::RngExt as _;
 use serde::{Deserialize, Serialize};
@@ -78,6 +78,7 @@ pub struct DetailsDraft {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CharacterDraft {
+    pub data_pack: Option<DataPackReference>,
     pub origin: Option<OriginDraft>,
     pub abilities: Option<AbilityScores>,
     pub build: Option<BuildDraft>,
@@ -89,6 +90,7 @@ impl CharacterDraft {
     #[must_use]
     pub fn from_character(character: &Character) -> Self {
         Self {
+            data_pack: character.data_pack.clone(),
             origin: Some(OriginDraft {
                 name: character.name.clone(),
                 character_class: character.character_class.to_string(),
@@ -178,9 +180,11 @@ impl CharacterDraft {
         let details = self.details.unwrap_or_default();
         let character = Character {
             name: origin.name,
+            data_pack: self.data_pack,
             character_class: origin.character_class.parse()?,
             background: origin.background.parse()?,
             species: origin.species.parse()?,
+            resolved_pack_species: None,
             size: origin.size.parse()?,
             dragonborn_ancestry: origin.dragonborn_ancestry,
             elf_lineage: origin.elf_lineage,
@@ -230,6 +234,25 @@ pub fn run_interactive(draft_path: impl AsRef<Path>) -> Result<Character> {
     run_interactive_with(draft_path, &TerminalPromptPort)
 }
 
+/// Run the staged terminal wizard with an optional external species catalog.
+///
+/// # Errors
+///
+/// Returns an error for input cancellation, checkpoint I/O, pack mismatch, or
+/// invalid choices.
+pub fn run_interactive_with_pack(
+    draft_path: impl AsRef<Path>,
+    data_pack: Option<DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
+    run_interactive_with_catalog(
+        draft_path.as_ref(),
+        &TerminalPromptPort,
+        data_pack,
+        pack_species,
+    )
+}
+
 /// Run the staged wizard with a caller-supplied prompt adapter.
 ///
 /// # Errors
@@ -240,16 +263,29 @@ pub fn run_interactive_with(
     draft_path: impl AsRef<Path>,
     prompts: &dyn PromptPort,
 ) -> Result<Character> {
-    let draft_path = draft_path.as_ref();
+    run_interactive_with_catalog(draft_path.as_ref(), prompts, None, &[])
+}
+
+#[allow(clippy::too_many_lines)]
+fn run_interactive_with_catalog(
+    draft_path: &Path,
+    prompts: &dyn PromptPort,
+    data_pack: Option<DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
     let mut draft = if draft_path.is_file() {
         CharacterDraft::load(draft_path)?
     } else {
         CharacterDraft::default()
     };
+    if draft.data_pack.is_some() && draft.data_pack != data_pack {
+        return Err("draft belongs to a different data pack".to_owned().into());
+    }
+    draft.data_pack = data_pack;
     loop {
         if draft.origin.is_none() {
             print_progress(1, "Origin");
-            match collect_origin(prompts) {
+            match collect_origin(prompts, pack_species) {
                 Ok(origin) => {
                     draft.origin = Some(origin);
                     draft.save(draft_path)?;
@@ -314,7 +350,8 @@ pub fn run_interactive_with(
                 Err(error) => return Err(error),
             }
         }
-        let character = draft.clone().into_character()?;
+        let mut character = draft.clone().into_character()?;
+        character.resolve_pack_species(pack_species)?;
         print_progress(5, "Review");
         print_character_review(&character);
         let action = match prompts.choose(
@@ -367,6 +404,18 @@ pub fn run_edit_interactive(character: &Character) -> Result<Option<Character>> 
     run_edit_interactive_with(character, &TerminalPromptPort)
 }
 
+/// Edit a completed character with an optional external species catalog.
+///
+/// # Errors
+///
+/// Returns an error for invalid replacement choices or terminal-input failures.
+pub fn run_edit_interactive_with_pack(
+    character: &Character,
+    pack_species: &[PackSpecies],
+) -> Result<Option<Character>> {
+    run_edit_interactive_with_catalog(character, &TerminalPromptPort, pack_species)
+}
+
 /// Edit a completed character with a caller-supplied prompt adapter.
 ///
 /// Returns `None` when the user cancels without accepting changes.
@@ -379,11 +428,20 @@ pub fn run_edit_interactive_with(
     character: &Character,
     prompts: &dyn PromptPort,
 ) -> Result<Option<Character>> {
+    run_edit_interactive_with_catalog(character, prompts, &[])
+}
+
+#[allow(clippy::too_many_lines)]
+fn run_edit_interactive_with_catalog(
+    character: &Character,
+    prompts: &dyn PromptPort,
+    pack_species: &[PackSpecies],
+) -> Result<Option<Character>> {
     let mut draft = CharacterDraft::from_character(character);
     loop {
         if draft.origin.is_none() {
             print_progress(1, "Identity");
-            match collect_origin(prompts) {
+            match collect_origin(prompts, pack_species) {
                 Ok(origin) => draft.origin = Some(origin),
                 Err(WizardError::Back) => continue,
                 Err(error) => return Err(error),
@@ -421,7 +479,8 @@ pub fn run_edit_interactive_with(
                 Err(error) => return Err(error),
             }
         }
-        let edited = draft.clone().into_character()?;
+        let mut edited = draft.clone().into_character()?;
+        edited.resolve_pack_species(pack_species)?;
         print_progress(5, "Review");
         print_character_review(&edited);
         let action = match prompts.choose(
@@ -472,6 +531,26 @@ pub fn generate_random_character(
     generate_random_character_with_seed(character_class, species, rand::rng().random())
 }
 
+/// Generate a complete random character with an optional external species catalog.
+///
+/// # Errors
+///
+/// Returns an error for an unavailable constraint or invalid generated choices.
+pub fn generate_random_character_with_pack(
+    character_class: Option<&str>,
+    species: Option<&str>,
+    data_pack: Option<DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
+    generate_random_character_with_catalog(
+        character_class,
+        species,
+        rand::rng().random(),
+        data_pack,
+        pack_species,
+    )
+}
+
 /// Run the quick-creation review loop through the terminal.
 ///
 /// # Errors
@@ -481,16 +560,50 @@ pub fn run_quick_interactive() -> Result<Character> {
     run_quick_interactive_with_seed(&TerminalPromptPort, rand::rng().random())
 }
 
-fn run_quick_interactive_with_seed(prompts: &dyn PromptPort, mut seed: u64) -> Result<Character> {
+/// Run quick creation with an optional external species catalog.
+///
+/// # Errors
+///
+/// Returns an error for random-generation, edit, or terminal-input failures.
+pub fn run_quick_interactive_with_pack(
+    data_pack: Option<&DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
+    run_quick_interactive_with_catalog(
+        &TerminalPromptPort,
+        rand::rng().random(),
+        data_pack,
+        pack_species,
+    )
+}
+
+fn run_quick_interactive_with_seed(prompts: &dyn PromptPort, seed: u64) -> Result<Character> {
+    run_quick_interactive_with_catalog(prompts, seed, None, &[])
+}
+
+fn run_quick_interactive_with_catalog(
+    prompts: &dyn PromptPort,
+    mut seed: u64,
+    data_pack: Option<&DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
     loop {
-        let character = generate_random_character_with_seed(None, None, seed)?;
+        let character = generate_random_character_with_catalog(
+            None,
+            None,
+            seed,
+            data_pack.cloned(),
+            pack_species,
+        )?;
         print_character_review(&character);
         let action = prompts.choose("Quick action", &["Accept", "Reroll", "Edit"])?;
         match action.as_str() {
             "Accept" => return Ok(character),
             "Reroll" => seed = seed.wrapping_add(1),
             "Edit" => {
-                if let Some(edited) = run_edit_interactive_with(&character, prompts)? {
+                if let Some(edited) =
+                    run_edit_interactive_with_catalog(&character, prompts, pack_species)?
+                {
                     return Ok(edited);
                 }
             }
@@ -504,18 +617,39 @@ fn generate_random_character_with_seed(
     species: Option<&str>,
     seed: u64,
 ) -> Result<Character> {
-    let prompts = RandomPromptPort::new(seed, character_class, species);
-    let origin = collect_origin(&prompts)?;
+    generate_random_character_with_catalog(character_class, species, seed, None, &[])
+}
+
+fn generate_random_character_with_catalog(
+    character_class: Option<&str>,
+    species: Option<&str>,
+    seed: u64,
+    data_pack: Option<DataPackReference>,
+    pack_species: &[PackSpecies],
+) -> Result<Character> {
+    let species_choice = species.map(|value| {
+        pack_species
+            .iter()
+            .find(|rule| {
+                rule.id.eq_ignore_ascii_case(value) || rule.name.eq_ignore_ascii_case(value)
+            })
+            .map_or(value, |rule| rule.name.as_str())
+    });
+    let prompts = RandomPromptPort::new(seed, character_class, species_choice);
+    let origin = collect_origin(&prompts, pack_species)?;
     let abilities = collect_abilities(&origin, &prompts)?;
     let build = collect_build(&origin, &prompts)?;
     let details = collect_details(&prompts)?;
-    CharacterDraft {
+    let mut character = CharacterDraft {
+        data_pack,
         origin: Some(origin),
         abilities: Some(abilities),
         build: Some(build),
         details: Some(details),
     }
-    .into_character()
+    .into_character()?;
+    character.resolve_pack_species(pack_species)?;
+    Ok(character)
 }
 
 struct RandomPromptPort {
@@ -607,7 +741,7 @@ fn print_progress(stage: usize, label: &str) {
 }
 
 #[allow(clippy::too_many_lines)]
-fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
+fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Result<OriginDraft> {
     let prompt = |label: &str| prompts.prompt(label);
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
     let choose_set =
@@ -615,9 +749,20 @@ fn collect_origin(prompts: &dyn PromptPort) -> Result<OriginDraft> {
     let name = prompt("Character name")?;
     let character_class = choose("Class", &character_wizard_srd_data::CLASS_NAMES)?;
     let background = choose("Background", &character_wizard_srd_data::BACKGROUND_NAMES)?;
-    let species = choose("Species", &character_wizard_srd_data::SPECIES_NAMES)?;
-    let sizes =
-        character_wizard_srd_data::species_rule(&species).map_or(&[][..], |rule| rule.sizes);
+    let mut species_labels = character_wizard_srd_data::SPECIES_NAMES.to_vec();
+    species_labels.extend(pack_species.iter().map(|rule| rule.name.as_str()));
+    let species_label = choose("Species", &species_labels)?;
+    let custom_species = pack_species.iter().find(|rule| rule.name == species_label);
+    let species = custom_species.map_or_else(|| species_label.clone(), |rule| rule.id.clone());
+    let custom_sizes = custom_species.map(|rule| {
+        rule.sizes
+            .iter()
+            .map(|size| size.as_str())
+            .collect::<Vec<_>>()
+    });
+    let sizes = custom_sizes.as_deref().unwrap_or_else(|| {
+        character_wizard_srd_data::species_rule(&species).map_or(&[][..], |rule| rule.sizes)
+    });
     let size = if sizes.len() == 1 {
         sizes[0].to_owned()
     } else {
@@ -1391,7 +1536,9 @@ fn character_review_rows(character: &Character) -> Vec<(&'static str, String)> {
             "Character",
             format!(
                 "Level {} {} {}",
-                character.level, character.species, character.character_class
+                character.level,
+                character.species_name(),
+                character.character_class
             ),
         ),
         ("Background", character.background.to_string()),
@@ -1484,10 +1631,11 @@ mod tests {
 
     use super::{
         CharacterDraft, background_equipment_labels, character_review_rows, class_equipment_labels,
-        collect_details, generate_random_character_with_seed, run_edit_interactive_with,
-        run_interactive_with, run_quick_interactive_with_seed,
+        collect_details, collect_origin, generate_random_character_with_catalog,
+        generate_random_character_with_seed, run_edit_interactive_with, run_interactive_with,
+        run_quick_interactive_with_catalog, run_quick_interactive_with_seed,
     };
-    use crate::character_wizard_domain::Character;
+    use crate::character_wizard_domain::{Character, DataPackReference, PackSpecies};
     use crate::creation::{PromptPort, Result, WizardError};
 
     struct ScriptedPrompts;
@@ -1509,6 +1657,7 @@ mod tests {
     struct FullRoguePrompts {
         back_from_abilities_once: Cell<bool>,
         name_prompts: Cell<usize>,
+        species: &'static str,
     }
 
     impl FullRoguePrompts {
@@ -1516,6 +1665,15 @@ mod tests {
             Self {
                 back_from_abilities_once: Cell::new(back_from_abilities_once),
                 name_prompts: Cell::new(0),
+                species: "Dwarf",
+            }
+        }
+
+        const fn with_species(species: &'static str) -> Self {
+            Self {
+                back_from_abilities_once: Cell::new(false),
+                name_prompts: Cell::new(0),
+                species,
             }
         }
     }
@@ -1789,7 +1947,7 @@ mod tests {
             let value = match label {
                 "Class" => "Rogue",
                 "Background" => "Criminal",
-                "Species" => "Dwarf",
+                "Species" => self.species,
                 "Generate ability scores" => {
                     if self.back_from_abilities_once.replace(false) {
                         return Err(WizardError::Back);
@@ -2007,6 +2165,18 @@ mod tests {
     }
 
     #[test]
+    fn origin_prompt_exposes_pack_species_and_stores_its_stable_id() {
+        let rule: PackSpecies = serde_json::from_str(
+            r#"{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"traits":["Moonlit Step"]}"#,
+        )
+        .expect("pack species");
+        let origin = collect_origin(&FullRoguePrompts::with_species("Moonfolk"), &[rule])
+            .expect("collect pack origin");
+        assert_eq!(origin.species, "moonfolk");
+        assert_eq!(origin.size, "Small");
+    }
+
+    #[test]
     fn random_generation_can_produce_every_class_and_species() {
         for (index, class) in crate::character_wizard_srd_data::CLASS_NAMES
             .iter()
@@ -2035,5 +2205,42 @@ mod tests {
             character,
             generate_random_character_with_seed(None, None, 43).expect("rerolled character")
         );
+    }
+
+    #[test]
+    fn quick_creation_can_select_a_pack_species() {
+        let rule: PackSpecies = serde_json::from_str(
+            r#"{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"traits":["Moonlit Step"]}"#,
+        )
+        .expect("pack species");
+        let reference = DataPackReference {
+            id: "moon-pack".to_owned(),
+            format_version: 1,
+            version: 1,
+        };
+        let seed = (0..1_000)
+            .find(|seed| {
+                generate_random_character_with_catalog(
+                    None,
+                    None,
+                    *seed,
+                    Some(reference.clone()),
+                    std::slice::from_ref(&rule),
+                )
+                .is_ok_and(|character| character.species == "moonfolk")
+            })
+            .expect("seed selecting pack species");
+        let prompts = QuickPrompts {
+            action_count: Cell::new(1),
+        };
+        let character = run_quick_interactive_with_catalog(
+            &prompts,
+            seed,
+            Some(&reference),
+            std::slice::from_ref(&rule),
+        )
+        .expect("quick pack character");
+        assert_eq!(character.species, "moonfolk");
+        assert_eq!(character.speed(), 35);
     }
 }

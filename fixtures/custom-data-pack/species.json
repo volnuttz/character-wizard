@@ -1,0 +1,14 @@
+[
+  {
+    "id": "moonfolk",
+    "name": "Moonfolk",
+    "sizes": [
+      "Small"
+    ],
+    "speed": 35,
+    "darkvision_range": 60,
+    "traits": [
+      "Moonlit Step"
+    ]
+  }
+]

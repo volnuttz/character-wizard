@@ -57,7 +57,7 @@ pub fn render_character(
         ("Text1".to_owned(), character.name.clone()),
         ("Text6".to_owned(), character.background.to_string()),
         ("Text7".to_owned(), character.character_class.to_string()),
-        ("Text8".to_owned(), character.species.to_string()),
+        ("Text8".to_owned(), character.species_name().to_owned()),
         ("Text9".to_owned(), String::new()),
         ("Text11".to_owned(), character.level.to_string()),
         ("Text12".to_owned(), character.xp.to_string()),
@@ -294,4 +294,48 @@ fn title_case(value: &str) -> String {
     chars.next().map_or_else(String::new, |first| {
         first.to_uppercase().collect::<String>() + chars.as_str()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::render_character;
+    use crate::{
+        character_wizard_domain::{Character, PackSpecies},
+        pdf_renderer::pdf_renderer_field_writer::read_field_value,
+    };
+
+    #[test]
+    fn pack_species_name_is_stored_in_the_existing_species_field() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let mut character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        character.species = "moonfolk".parse().expect("species id");
+        character.size = "Small".parse().expect("size");
+        character.resolved_pack_species = Some(
+            serde_json::from_str::<PackSpecies>(
+                r#"{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"traits":["Moonlit Step"]}"#,
+            )
+            .expect("pack species"),
+        );
+        let output = std::env::temp_dir().join(format!(
+            "character-wizard-pack-species-render-{}-{}.pdf",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        render_character(
+            &character,
+            std::path::Path::new("assets/character-sheet.pdf"),
+            &output,
+        )
+        .expect("render character");
+        let value = read_field_value(&output, "Text8").expect("read species field");
+        assert_eq!(value.as_str().expect("text value"), b"Moonfolk");
+        let document = lopdf::Document::load(&output).expect("reopen output");
+        assert_eq!(document.get_pages().len(), 2);
+        assert!(document.catalog().expect("catalog").has(b"AcroForm"));
+        std::fs::remove_file(output).expect("remove proof PDF");
+    }
 }

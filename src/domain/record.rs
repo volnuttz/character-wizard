@@ -332,9 +332,13 @@ impl ClassResource {
 #[serde(deny_unknown_fields)]
 pub struct Character {
     pub name: String,
+    #[serde(default)]
+    pub data_pack: Option<DataPackReference>,
     pub character_class: ClassId,
     pub background: BackgroundId,
     pub species: SpeciesId,
+    #[serde(skip)]
+    pub resolved_pack_species: Option<PackSpecies>,
     pub size: Size,
     #[serde(default)]
     pub dragonborn_ancestry: Option<String>,
@@ -386,6 +390,29 @@ pub struct Character {
     pub level: u8,
     #[serde(default)]
     pub xp: u32,
+}
+
+/// Stable provenance for a character that depends on an external data pack.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DataPackReference {
+    pub id: String,
+    pub format_version: u8,
+    pub version: u32,
+}
+
+/// Runtime-resolved basic mechanics for an external pack species.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackSpecies {
+    pub id: String,
+    pub name: String,
+    pub sizes: Vec<Size>,
+    pub speed: u8,
+    #[serde(default)]
+    pub darkvision_range: Option<u8>,
+    #[serde(default)]
+    pub traits: Vec<String>,
 }
 
 fn default_equipment_option() -> String {

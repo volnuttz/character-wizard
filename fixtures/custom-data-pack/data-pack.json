@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "id": "moon-pack",
+  "version": 1,
+  "name": "Moon Pack",
+  "files": {
+    "species": "species.json"
+  }
+}

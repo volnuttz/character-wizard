@@ -52,11 +52,47 @@ srd_id!(BackgroundId {
     Acolyte => "Acolyte", Criminal => "Criminal", Sage => "Sage", Soldier => "Soldier",
 });
 
-srd_id!(SpeciesId {
-    Dragonborn => "Dragonborn", Dwarf => "Dwarf", Elf => "Elf", Gnome => "Gnome",
-    Goliath => "Goliath", Halfling => "Halfling", Human => "Human", Orc => "Orc",
-    Tiefling => "Tiefling",
-});
+/// Built-in SRD species names and stable external pack species IDs.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct SpeciesId(String);
+
+impl SpeciesId {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for SpeciesId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for SpeciesId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for SpeciesId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl FromStr for SpeciesId {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.trim().is_empty() {
+            Err("species identifier must not be empty".to_owned())
+        } else {
+            Ok(Self(value.to_owned()))
+        }
+    }
+}
 
 srd_id!(Size {
     Small => "Small", Medium => "Medium",

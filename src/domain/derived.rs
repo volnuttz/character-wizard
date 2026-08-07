@@ -76,7 +76,10 @@ impl Character {
         let mut speed = if self.elf_lineage.as_deref() == Some("Wood Elf") {
             35
         } else {
-            srd::species_rule(&self.species).map_or(0, |rule| rule.speed)
+            self.resolved_pack_species.as_ref().map_or_else(
+                || srd::species_rule(&self.species).map_or(0, |rule| rule.speed),
+                |rule| rule.speed,
+            )
         };
         if self
             .equipped_armor()
@@ -312,7 +315,10 @@ impl Character {
         match self.elf_lineage.as_deref() {
             Some("Drow") => Some(120),
             Some("High Elf" | "Wood Elf") => Some(60),
-            _ => srd::species_rule(&self.species).and_then(|rule| rule.darkvision_range),
+            _ => self.resolved_pack_species.as_ref().map_or_else(
+                || srd::species_rule(&self.species).and_then(|rule| rule.darkvision_range),
+                |rule| rule.darkvision_range,
+            ),
         }
     }
 
@@ -667,11 +673,23 @@ impl Character {
     }
 
     #[must_use]
+    pub fn species_name(&self) -> &str {
+        self.resolved_pack_species
+            .as_ref()
+            .map_or_else(|| self.species.as_str(), |rule| rule.name.as_str())
+    }
+
+    #[must_use]
     pub fn species_traits(&self) -> Vec<String> {
-        let mut traits: Vec<String> = srd::species_traits(&self.species)
-            .iter()
-            .map(|value| (*value).to_owned())
-            .collect();
+        let mut traits: Vec<String> = self.resolved_pack_species.as_ref().map_or_else(
+            || {
+                srd::species_traits(&self.species)
+                    .iter()
+                    .map(|value| (*value).to_owned())
+                    .collect()
+            },
+            |rule| rule.traits.clone(),
+        );
         if let Some(value) = &self.dragonborn_ancestry {
             traits.push(format!(
                 "Draconic Ancestry: {value} ({})",

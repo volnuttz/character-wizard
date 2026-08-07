@@ -524,13 +524,40 @@ Exit criteria:
 Goal: permit opt-in campaign content without mixing non-SRD material into the
 built-in SRD catalog.
 
-- [ ] Define a versioned, documented data-pack format for compatible species,
-  backgrounds, equipment, spells, and other supported catalog records.
-- [ ] Add `--data <directory>` to load and validate an explicit campaign pack.
-- [ ] Keep built-in content strictly sourced from the supplied SRD and separate
+- [~] Define a versioned, documented data-pack format for compatible species,
+  backgrounds, equipment, spells, and other supported catalog records. The v1
+  manifest envelope and safe JSON-file validation are complete; per-family
+  record schemas remain to be integrated.
+- [x] Add `--data <directory>` to load and validate an explicit campaign pack.
+- [x] Keep built-in content strictly sourced from the supplied SRD and separate
   pack provenance from canonical character data.
-- [ ] Define conflicts, stable identifiers, validation, and PDF-rendering
-  behavior for pack-provided content.
+- [x] Activate add-only basic custom species for interactive creation,
+  constrained random generation, validation, derived speed/senses/traits,
+  canonical JSON, and PDF rendering.
+- [x] Add pack species to the quick-create catalog.
+- [~] Define conflicts, stable identifiers, validation, and PDF-rendering
+  behavior for pack-provided content. Add-only species IDs and their basic
+  rendering behavior are complete; other content families remain pending.
+
+#### Custom backgrounds
+
+- [ ] Define an add-only custom-background record with a stable identifier,
+  display name, three eligible abilities, two skill proficiencies, an Origin
+  feat, a tool proficiency, and starting equipment or gold.
+- [ ] Add pack backgrounds to interactive creation, edit, constrained random,
+  and quick-create catalogs while preserving stable pack references in
+  canonical character JSON.
+- [ ] Apply pack-background ability increases and enforce the same score caps
+  and allocation rules used by built-in backgrounds.
+- [ ] Integrate background skill exclusions, feat benefits and subchoices, tool
+  proficiency, and starting equipment or gold with creation and derived values.
+- [ ] Validate every pack-background choice and reject missing, conflicting, or
+  out-of-pack references with actionable errors.
+- [ ] Resolve background display names and pack provenance when showing or
+  editing a character, and render background, proficiency, equipment, and feat
+  summaries into the supported PDF fields.
+- [ ] Add deterministic creation, edit, random, quick-create, validation, and
+  PDF write/read-back tests for the complete custom-background vertical slice.
 
 Exit criteria:
 
