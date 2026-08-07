@@ -472,6 +472,33 @@ pub fn generate_random_character(
     generate_random_character_with_seed(character_class, species, rand::rng().random())
 }
 
+/// Run the quick-creation review loop through the terminal.
+///
+/// # Errors
+///
+/// Returns an error for random-generation, edit, or terminal-input failures.
+pub fn run_quick_interactive() -> Result<Character> {
+    run_quick_interactive_with_seed(&TerminalPromptPort, rand::rng().random())
+}
+
+fn run_quick_interactive_with_seed(prompts: &dyn PromptPort, mut seed: u64) -> Result<Character> {
+    loop {
+        let character = generate_random_character_with_seed(None, None, seed)?;
+        print_character_review(&character);
+        let action = prompts.choose("Quick action", &["Accept", "Reroll", "Edit"])?;
+        match action.as_str() {
+            "Accept" => return Ok(character),
+            "Reroll" => seed = seed.wrapping_add(1),
+            "Edit" => {
+                if let Some(edited) = run_edit_interactive_with(&character, prompts)? {
+                    return Ok(edited);
+                }
+            }
+            _ => return Err(WizardError::Message("invalid quick action".to_owned())),
+        }
+    }
+}
+
 fn generate_random_character_with_seed(
     character_class: Option<&str>,
     species: Option<&str>,
@@ -1458,7 +1485,7 @@ mod tests {
     use super::{
         CharacterDraft, background_equipment_labels, character_review_rows, class_equipment_labels,
         collect_details, generate_random_character_with_seed, run_edit_interactive_with,
-        run_interactive_with,
+        run_interactive_with, run_quick_interactive_with_seed,
     };
     use crate::character_wizard_domain::Character;
     use crate::creation::{PromptPort, Result, WizardError};
@@ -1472,6 +1499,10 @@ mod tests {
     }
 
     struct EditDetailsPrompts {
+        action_count: Cell<usize>,
+    }
+
+    struct QuickPrompts {
         action_count: Cell<usize>,
     }
 
@@ -1657,6 +1688,58 @@ mod tests {
                 "Edit details"
             } else {
                 "Save changes"
+            };
+            self.action_count.set(self.action_count.get() + 1);
+            Ok(action.to_owned())
+        }
+
+        fn choose_set(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected multi-select prompt".to_owned(),
+            ))
+        }
+
+        fn choose_set_with_descriptions(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+            _descriptions: bool,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected described multi-select prompt".to_owned(),
+            ))
+        }
+    }
+
+    impl PromptPort for QuickPrompts {
+        fn prompt(&self, _label: &str) -> Result<String> {
+            Err(WizardError::Message(
+                "unexpected required text prompt".to_owned(),
+            ))
+        }
+
+        fn optional_prompt(&self, _label: &str) -> Result<Option<String>> {
+            Err(WizardError::Message(
+                "unexpected optional text prompt".to_owned(),
+            ))
+        }
+
+        fn choose(&self, label: &str, _choices: &[&str]) -> Result<String> {
+            if label != "Quick action" {
+                return Err(WizardError::Message(format!(
+                    "unexpected choice prompt: {label}"
+                )));
+            }
+            let action = if self.action_count.get() == 0 {
+                "Reroll"
+            } else {
+                "Accept"
             };
             self.action_count.set(self.action_count.get() + 1);
             Ok(action.to_owned())
@@ -1939,5 +2022,18 @@ mod tests {
             generate_random_character_with_seed(None, Some(species), index as u64 + 100)
                 .unwrap_or_else(|error| panic!("random {species}: {error}"));
         }
+    }
+
+    #[test]
+    fn quick_creation_can_reroll_then_accept() {
+        let prompts = QuickPrompts {
+            action_count: Cell::new(0),
+        };
+        let character = run_quick_interactive_with_seed(&prompts, 42).expect("quick character");
+        assert_eq!(prompts.action_count.get(), 2);
+        assert_eq!(
+            character,
+            generate_random_character_with_seed(None, None, 43).expect("rerolled character")
+        );
     }
 }

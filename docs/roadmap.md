@@ -509,7 +509,7 @@ other rapid-use cases.
 - [x] Add `random` generation using the existing domain constraints and SRD data.
 - [x] Support constraints such as `--class` and `--species` when generating a
   random character.
-- [ ] Add `create --quick` with a concise generated-character review and reroll,
+- [x] Add `create --quick` with a concise generated-character review and reroll,
   edit, or accept actions.
 - [x] Cover random and constrained generation with deterministic test seams and
   validation tests for every emitted character.

@@ -46,6 +46,8 @@ enum Command {
 struct CreateArgs {
     #[arg(long)]
     template: Option<PathBuf>,
+    #[arg(long, conflicts_with = "from_json")]
+    quick: bool,
     #[arg(long)]
     from_json: Option<PathBuf>,
     #[arg(
@@ -345,6 +347,9 @@ fn create(options: CreateArgs) -> CliResult {
     let mut completed_draft = None;
     let character = if let Some(source) = options.from_json {
         load_character(&source)?
+    } else if options.quick {
+        character_wizard_creation::run_quick_interactive()
+            .map_err(|error| (1, error.to_string()))?
     } else {
         let draft = options.draft;
         println!(
@@ -590,6 +595,7 @@ mod tests {
             panic!("expected create command");
         };
         assert!(options.template.is_none());
+        assert!(!options.quick);
         assert!(options.json.is_none());
         assert!(options.output.is_none());
     }
@@ -635,6 +641,26 @@ mod tests {
                 "class"
             ),
             Ok("Wizard".to_owned())
+        );
+    }
+
+    #[test]
+    fn create_accepts_quick_but_not_a_json_source() {
+        let cli = Cli::try_parse_from(["character-wizard", "create", "--quick"])
+            .expect("parse quick create");
+        let Command::Create(options) = cli.command else {
+            panic!("expected create command");
+        };
+        assert!(options.quick);
+        assert!(
+            Cli::try_parse_from([
+                "character-wizard",
+                "create",
+                "--quick",
+                "--from-json",
+                "legolas.json",
+            ])
+            .is_err()
         );
     }
 
