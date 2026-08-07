@@ -5,6 +5,8 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-06
+
 ### Changed
 
 - `create` now defaults its JSON and filled-PDF output paths from the character
@@ -243,7 +245,8 @@ This release contains no user-facing character-creation or PDF-output changes.
   executables with SHA-256 files.
 - Cross-platform quality, native-binary, and tag-triggered GitHub Release jobs.
 
-[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/volnuttz/character-wizard/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/volnuttz/character-wizard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/volnuttz/character-wizard/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/volnuttz/character-wizard/compare/v0.2.1...v0.3.0
