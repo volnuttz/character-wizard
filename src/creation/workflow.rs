@@ -85,6 +85,48 @@ pub struct CharacterDraft {
 }
 
 impl CharacterDraft {
+    /// Convert a validated canonical character into an editable complete draft.
+    #[must_use]
+    pub fn from_character(character: &Character) -> Self {
+        Self {
+            origin: Some(OriginDraft {
+                name: character.name.clone(),
+                character_class: character.character_class.to_string(),
+                background: character.background.to_string(),
+                species: character.species.to_string(),
+                size: character.size.to_string(),
+                dragonborn_ancestry: character.dragonborn_ancestry.clone(),
+                elf_lineage: character.elf_lineage.clone(),
+                elf_spellcasting_ability: character.elf_spellcasting_ability.clone(),
+                elf_keen_senses_skill: character.elf_keen_senses_skill.clone(),
+                gnome_lineage: character.gnome_lineage.clone(),
+                gnome_spellcasting_ability: character.gnome_spellcasting_ability.clone(),
+                goliath_ancestry: character.goliath_ancestry.clone(),
+                human_skill: character.human_skill.clone(),
+                human_origin_feat: character.human_origin_feat.clone(),
+                tiefling_legacy: character.tiefling_legacy.clone(),
+                tiefling_spellcasting_ability: character.tiefling_spellcasting_ability.clone(),
+                magic_initiate_choices: character.magic_initiate_choices.clone(),
+                skilled_proficiencies: character.skilled_proficiencies.clone(),
+                selected_languages: character.selected_languages.clone(),
+            }),
+            abilities: Some(character.abilities.clone()),
+            build: Some(BuildDraft {
+                class_skills: character.class_skills.clone(),
+                class_choices: character.class_choices.clone(),
+                class_equipment_option: character.class_equipment_option.clone(),
+                background_equipment_option: character.background_equipment_option.clone(),
+                bard_starting_instrument: character.bard_starting_instrument.clone(),
+                alignment: character.alignment.clone(),
+            }),
+            details: Some(DetailsDraft {
+                backstory: character.backstory.clone(),
+                appearance: character.appearance.clone(),
+                personality: character.personality.clone(),
+            }),
+        }
+    }
+
     /// Load a current-format checkpoint.
     ///
     /// # Errors
@@ -311,6 +353,109 @@ pub fn run_interactive_with(
             _ => return Err(WizardError::SaveAndExit),
         }
         draft.save(draft_path)?;
+    }
+}
+
+/// Edit a completed character through the terminal wizard.
+///
+/// Returns `None` when the user cancels without accepting changes.
+///
+/// # Errors
+///
+/// Returns an error for invalid replacement choices or terminal input failures.
+pub fn run_edit_interactive(character: &Character) -> Result<Option<Character>> {
+    run_edit_interactive_with(character, &TerminalPromptPort)
+}
+
+/// Edit a completed character with a caller-supplied prompt adapter.
+///
+/// Returns `None` when the user cancels without accepting changes.
+///
+/// # Errors
+///
+/// Returns an error for invalid replacement choices or prompt-adapter failures.
+#[allow(clippy::too_many_lines)]
+pub fn run_edit_interactive_with(
+    character: &Character,
+    prompts: &dyn PromptPort,
+) -> Result<Option<Character>> {
+    let mut draft = CharacterDraft::from_character(character);
+    loop {
+        if draft.origin.is_none() {
+            print_progress(1, "Identity");
+            match collect_origin(prompts) {
+                Ok(origin) => draft.origin = Some(origin),
+                Err(WizardError::Back) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        if draft.abilities.is_none() {
+            let origin = draft
+                .origin
+                .as_ref()
+                .ok_or_else(|| "origin choices missing".to_owned())?;
+            print_progress(2, "Abilities");
+            match collect_abilities(origin, prompts) {
+                Ok(abilities) => draft.abilities = Some(abilities),
+                Err(WizardError::Back) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        if draft.build.is_none() {
+            let origin = draft
+                .origin
+                .as_ref()
+                .ok_or_else(|| "origin choices missing".to_owned())?;
+            print_progress(3, "Build");
+            match collect_build(origin, prompts) {
+                Ok(build) => draft.build = Some(build),
+                Err(WizardError::Back) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        if draft.details.is_none() {
+            print_progress(4, "Details");
+            match collect_details(prompts) {
+                Ok(details) => draft.details = Some(details),
+                Err(WizardError::Back) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        let edited = draft.clone().into_character()?;
+        print_progress(5, "Review");
+        print_character_review(&edited);
+        let action = match prompts.choose(
+            "Edit action",
+            &[
+                "Save changes",
+                "Edit identity",
+                "Edit abilities",
+                "Edit build",
+                "Edit details",
+                "Cancel",
+            ],
+        ) {
+            Ok(action) => action,
+            Err(WizardError::Back) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        match action.as_str() {
+            "Save changes" => return Ok(Some(edited)),
+            "Edit identity" => {
+                draft.origin = None;
+                draft.abilities = None;
+                draft.build = None;
+                draft.details = None;
+            }
+            "Edit abilities" => {
+                draft.abilities = None;
+                draft.build = None;
+            }
+            "Edit build" => draft.build = None,
+            "Edit details" => draft.details = None,
+            "Cancel" => return Ok(None),
+            _ => return Err(WizardError::Message("invalid edit action".to_owned())),
+        }
     }
 }
 
@@ -1195,8 +1340,8 @@ mod tests {
     };
 
     use super::{
-        BuildDraft, CharacterDraft, DetailsDraft, OriginDraft, background_equipment_labels,
-        character_review_rows, class_equipment_labels, collect_details, run_interactive_with,
+        CharacterDraft, background_equipment_labels, character_review_rows, class_equipment_labels,
+        collect_details, run_edit_interactive_with, run_interactive_with,
     };
     use crate::character_wizard_domain::Character;
     use crate::creation::{PromptPort, Result, WizardError};
@@ -1204,6 +1349,14 @@ mod tests {
     struct ScriptedPrompts;
 
     struct AcceptingPrompts;
+
+    struct EditingPrompts {
+        cancel: bool,
+    }
+
+    struct EditDetailsPrompts {
+        action_count: Cell<usize>,
+    }
 
     struct FullRoguePrompts {
         back_from_abilities_once: Cell<bool>,
@@ -1288,6 +1441,108 @@ mod tests {
                     "unexpected choice prompt: {label}"
                 )))
             }
+        }
+
+        fn choose_set(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected multi-select prompt".to_owned(),
+            ))
+        }
+
+        fn choose_set_with_descriptions(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+            _descriptions: bool,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected described multi-select prompt".to_owned(),
+            ))
+        }
+    }
+
+    impl PromptPort for EditingPrompts {
+        fn prompt(&self, _label: &str) -> Result<String> {
+            Err(WizardError::Message(
+                "unexpected required text prompt".to_owned(),
+            ))
+        }
+
+        fn optional_prompt(&self, _label: &str) -> Result<Option<String>> {
+            Err(WizardError::Message(
+                "unexpected optional text prompt".to_owned(),
+            ))
+        }
+
+        fn choose(&self, label: &str, _choices: &[&str]) -> Result<String> {
+            if label == "Edit action" {
+                Ok(if self.cancel {
+                    "Cancel"
+                } else {
+                    "Save changes"
+                }
+                .to_owned())
+            } else {
+                Err(WizardError::Message(format!(
+                    "unexpected choice prompt: {label}"
+                )))
+            }
+        }
+
+        fn choose_set(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected multi-select prompt".to_owned(),
+            ))
+        }
+
+        fn choose_set_with_descriptions(
+            &self,
+            _label: &str,
+            _choices: &[&str],
+            _count: usize,
+            _descriptions: bool,
+        ) -> Result<BTreeSet<String>> {
+            Err(WizardError::Message(
+                "unexpected described multi-select prompt".to_owned(),
+            ))
+        }
+    }
+
+    impl PromptPort for EditDetailsPrompts {
+        fn prompt(&self, _label: &str) -> Result<String> {
+            Err(WizardError::Message(
+                "unexpected required text prompt".to_owned(),
+            ))
+        }
+
+        fn optional_prompt(&self, label: &str) -> Result<Option<String>> {
+            Ok(Some(format!("Updated {label}")))
+        }
+
+        fn choose(&self, label: &str, _choices: &[&str]) -> Result<String> {
+            if label != "Edit action" {
+                return Err(WizardError::Message(format!(
+                    "unexpected choice prompt: {label}"
+                )));
+            }
+            let action = if self.action_count.get() == 0 {
+                "Edit details"
+            } else {
+                "Save changes"
+            };
+            self.action_count.set(self.action_count.get() + 1);
+            Ok(action.to_owned())
         }
 
         fn choose_set(
@@ -1493,43 +1748,7 @@ mod tests {
     fn complete_checkpoint_builds_the_canonical_character() {
         let source = include_str!("../../fixtures/complete-character.json");
         let character = Character::from_json(source).expect("character fixture");
-        let draft = CharacterDraft {
-            origin: Some(OriginDraft {
-                name: character.name.clone(),
-                character_class: character.character_class.to_string(),
-                background: character.background.to_string(),
-                species: character.species.to_string(),
-                size: character.size.to_string(),
-                dragonborn_ancestry: character.dragonborn_ancestry.clone(),
-                elf_lineage: character.elf_lineage.clone(),
-                elf_spellcasting_ability: character.elf_spellcasting_ability.clone(),
-                elf_keen_senses_skill: character.elf_keen_senses_skill.clone(),
-                gnome_lineage: character.gnome_lineage.clone(),
-                gnome_spellcasting_ability: character.gnome_spellcasting_ability.clone(),
-                goliath_ancestry: character.goliath_ancestry.clone(),
-                human_skill: character.human_skill.clone(),
-                human_origin_feat: character.human_origin_feat.clone(),
-                tiefling_legacy: character.tiefling_legacy.clone(),
-                tiefling_spellcasting_ability: character.tiefling_spellcasting_ability.clone(),
-                magic_initiate_choices: character.magic_initiate_choices.clone(),
-                skilled_proficiencies: character.skilled_proficiencies.clone(),
-                selected_languages: character.selected_languages.clone(),
-            }),
-            abilities: Some(character.abilities.clone()),
-            build: Some(BuildDraft {
-                class_skills: character.class_skills.clone(),
-                class_choices: character.class_choices.clone(),
-                class_equipment_option: character.class_equipment_option.clone(),
-                background_equipment_option: character.background_equipment_option.clone(),
-                bard_starting_instrument: character.bard_starting_instrument.clone(),
-                alignment: character.alignment.clone(),
-            }),
-            details: Some(DetailsDraft {
-                backstory: character.backstory.clone(),
-                appearance: character.appearance.clone(),
-                personality: character.personality.clone(),
-            }),
-        };
+        let draft = CharacterDraft::from_character(&character);
         assert_eq!(draft.clone().into_character(), Ok(character.clone()));
 
         let path = temporary_draft("complete-draft");
@@ -1538,5 +1757,40 @@ mod tests {
             .expect("scripted review accepts completed draft");
         std::fs::remove_file(path).expect("remove completed draft");
         assert_eq!(completed, character);
+    }
+
+    #[test]
+    fn editor_can_accept_or_cancel_a_loaded_character() {
+        let character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        assert_eq!(
+            run_edit_interactive_with(&character, &EditingPrompts { cancel: false }),
+            Ok(Some(character.clone()))
+        );
+        assert_eq!(
+            run_edit_interactive_with(&character, &EditingPrompts { cancel: true }),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn editor_recollects_only_the_selected_details_section() {
+        let character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        let edited = run_edit_interactive_with(
+            &character,
+            &EditDetailsPrompts {
+                action_count: Cell::new(0),
+            },
+        )
+        .expect("editor completes")
+        .expect("editor saves changes");
+        assert_eq!(edited.backstory.as_deref(), Some("Updated Backstory"));
+        assert_eq!(edited.appearance.as_deref(), Some("Updated Appearance"));
+        assert_eq!(edited.personality.as_deref(), Some("Updated Personality"));
+        assert_eq!(edited.character_class, character.character_class);
+        assert_eq!(edited.class_choices, character.class_choices);
     }
 }

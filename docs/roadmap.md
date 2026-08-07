@@ -483,10 +483,10 @@ subject to release planning.
 
 Goal: let users manage and revise completed characters without recreating them.
 
-- [ ] Add `edit <character.json>` with a section-based editor for identity,
+- [x] Add `edit <character.json>` with a section-based editor for identity,
   species, background, ability scores, class, skills, equipment, spells,
   personality details, and review.
-- [ ] Recompute derived values, validate the completed character, save canonical
+- [x] Recompute derived values, validate the completed character, save canonical
   JSON, and optionally regenerate its PDF after an edit.
 - [ ] Add an explicit `render` command for regenerating a character sheet from a
   saved character record.

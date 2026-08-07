@@ -10,7 +10,8 @@ mod creation_workflow;
 pub use creation_error::WizardError;
 pub use creation_prompts::{PromptPort, TerminalPromptPort};
 pub use creation_workflow::{
-    BuildDraft, CharacterDraft, DetailsDraft, OriginDraft, run_interactive, run_interactive_with,
+    BuildDraft, CharacterDraft, DetailsDraft, OriginDraft, run_edit_interactive,
+    run_edit_interactive_with, run_interactive, run_interactive_with,
 };
 
 pub(crate) type Result<T> = std::result::Result<T, WizardError>;

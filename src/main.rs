@@ -34,6 +34,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Create(CreateArgs),
+    Edit(EditArgs),
     Validate { character_json: PathBuf },
     Show { character_json: PathBuf },
 }
@@ -63,6 +64,18 @@ struct CreateArgs {
     force: bool,
 }
 
+#[derive(Args)]
+struct EditArgs {
+    #[arg(value_name = "CHARACTER_JSON")]
+    character_json: PathBuf,
+    #[arg(long, help = "Render the edited character to this PDF path")]
+    output: Option<PathBuf>,
+    #[arg(long, requires = "output")]
+    template: Option<PathBuf>,
+    #[arg(long)]
+    force: bool,
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse_from(env::args_os());
     match run(cli) {
@@ -79,9 +92,61 @@ type CliResult = Result<(), (u8, String)>;
 fn run(cli: Cli) -> CliResult {
     match cli.command {
         Command::Create(options) => create(options),
+        Command::Edit(options) => edit(options),
         Command::Validate { character_json } => validate(&character_json),
         Command::Show { character_json } => show(&character_json),
     }
+}
+
+fn edit(options: EditArgs) -> CliResult {
+    let character = load_character(&options.character_json)?;
+    let Some(edited) = character_wizard_creation::run_edit_interactive(&character)
+        .map_err(|error| (1, error.to_string()))?
+    else {
+        println!("No changes saved.");
+        return Ok(());
+    };
+    let template = options
+        .output
+        .as_ref()
+        .map(|_| resolve_template(options.template.as_deref()))
+        .transpose()
+        .map_err(|error| (1, error))?;
+    let mut outputs = vec![options.character_json.as_path()];
+    if let Some(output) = options.output.as_deref() {
+        outputs.push(output);
+    }
+    confirm_overwrite(&outputs, options.force)?;
+    create_parent(&options.character_json)?;
+    fs::write(
+        &options.character_json,
+        edited.to_json().map_err(|error| (1, error))?,
+    )
+    .map_err(|error| {
+        (
+            1,
+            format!(
+                "unable to write {}: {error}",
+                options.character_json.display()
+            ),
+        )
+    })?;
+    if let Some(output) = options.output {
+        create_parent(&output)?;
+        if let Err(error) = character_wizard_pdf_renderer::render_character(
+            &edited,
+            template
+                .as_ref()
+                .expect("template resolved when output is set"),
+            &output,
+        ) {
+            return Err((1, error));
+        }
+        println!("PDF: {}", output.display());
+    }
+    println!("{} updated.", edited.name);
+    println!("JSON: {}", options.character_json.display());
+    Ok(())
 }
 
 fn validate(path: &Path) -> CliResult {
@@ -302,6 +367,34 @@ mod tests {
         };
         assert_eq!(options.json, Some(PathBuf::from("records/legolas.json")));
         assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+    }
+
+    #[test]
+    fn edit_accepts_an_optional_pdf_output() {
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "edit",
+            "records/legolas.json",
+            "--template",
+            "assets/character-sheet.pdf",
+            "--output",
+            "sheets/legolas.pdf",
+            "--force",
+        ])
+        .expect("parse edit");
+        let Command::Edit(options) = cli.command else {
+            panic!("expected edit command");
+        };
+        assert_eq!(
+            options.character_json,
+            PathBuf::from("records/legolas.json")
+        );
+        assert_eq!(
+            options.template,
+            Some(PathBuf::from("assets/character-sheet.pdf"))
+        );
+        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert!(options.force);
     }
 
     #[test]
