@@ -1,6 +1,6 @@
 //! Interactive creation workflow and completion.
 
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{cell::Cell, collections::BTreeSet, fs, path::Path};
 
 use crate::character_wizard_domain::{
     AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores, BackgroundAbilityAdjustment,
@@ -456,6 +456,122 @@ pub fn run_edit_interactive_with(
             "Cancel" => return Ok(None),
             _ => return Err(WizardError::Message("invalid edit action".to_owned())),
         }
+    }
+}
+
+/// Generate a complete, validated level-1 character from random legal choices.
+///
+/// # Errors
+///
+/// Returns an error when a requested class or species is unavailable, or a
+/// generated set of choices fails validation.
+pub fn generate_random_character(
+    character_class: Option<&str>,
+    species: Option<&str>,
+) -> Result<Character> {
+    generate_random_character_with_seed(character_class, species, rand::rng().random())
+}
+
+fn generate_random_character_with_seed(
+    character_class: Option<&str>,
+    species: Option<&str>,
+    seed: u64,
+) -> Result<Character> {
+    let prompts = RandomPromptPort::new(seed, character_class, species);
+    let origin = collect_origin(&prompts)?;
+    let abilities = collect_abilities(&origin, &prompts)?;
+    let build = collect_build(&origin, &prompts)?;
+    let details = collect_details(&prompts)?;
+    CharacterDraft {
+        origin: Some(origin),
+        abilities: Some(abilities),
+        build: Some(build),
+        details: Some(details),
+    }
+    .into_character()
+}
+
+struct RandomPromptPort {
+    state: Cell<u64>,
+    character_class: Option<String>,
+    species: Option<String>,
+}
+
+impl RandomPromptPort {
+    fn new(seed: u64, character_class: Option<&str>, species: Option<&str>) -> Self {
+        Self {
+            state: Cell::new(seed),
+            character_class: character_class.map(str::to_owned),
+            species: species.map(str::to_owned),
+        }
+    }
+
+    fn next_index(&self, length: usize) -> usize {
+        let state = self
+            .state
+            .get()
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1);
+        self.state.set(state);
+        (state >> 32) as usize % length
+    }
+
+    fn constrained_choice(
+        &self,
+        label: &str,
+        choices: &[&str],
+        constraint: Option<&String>,
+    ) -> Result<String> {
+        if let Some(value) = constraint {
+            if choices.contains(&value.as_str()) {
+                return Ok(value.clone());
+            }
+            return Err(format!("requested {label} is unavailable: {value}").into());
+        }
+        Ok(choices[self.next_index(choices.len())].to_owned())
+    }
+}
+
+impl PromptPort for RandomPromptPort {
+    fn prompt(&self, label: &str) -> Result<String> {
+        if label == "Character name" {
+            return Ok(format!("Random Adventurer {}", self.next_index(10_000)));
+        }
+        Err(format!("random generation cannot answer prompt: {label}").into())
+    }
+
+    fn optional_prompt(&self, _label: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    fn choose(&self, label: &str, choices: &[&str]) -> Result<String> {
+        match label {
+            "Class" => self.constrained_choice(label, choices, self.character_class.as_ref()),
+            "Species" => self.constrained_choice(label, choices, self.species.as_ref()),
+            "Generate ability scores" => Ok("Use the class suggested array".to_owned()),
+            _ => Ok(choices[self.next_index(choices.len())].to_owned()),
+        }
+    }
+
+    fn choose_set(&self, label: &str, choices: &[&str], count: usize) -> Result<BTreeSet<String>> {
+        if count > choices.len() {
+            return Err(format!("random generation cannot select {count} {label}").into());
+        }
+        let mut selected = BTreeSet::new();
+        while selected.len() < count {
+            selected.insert(choices[self.next_index(choices.len())].to_owned());
+        }
+        Ok(selected)
+    }
+
+    fn choose_set_with_descriptions(
+        &self,
+        label: &str,
+        choices: &[&str],
+        count: usize,
+        _descriptions: bool,
+    ) -> Result<BTreeSet<String>> {
+        self.choose_set(label, choices, count)
     }
 }
 
@@ -1341,7 +1457,8 @@ mod tests {
 
     use super::{
         CharacterDraft, background_equipment_labels, character_review_rows, class_equipment_labels,
-        collect_details, run_edit_interactive_with, run_interactive_with,
+        collect_details, generate_random_character_with_seed, run_edit_interactive_with,
+        run_interactive_with,
     };
     use crate::character_wizard_domain::Character;
     use crate::creation::{PromptPort, Result, WizardError};
@@ -1792,5 +1909,35 @@ mod tests {
         assert_eq!(edited.personality.as_deref(), Some("Updated Personality"));
         assert_eq!(edited.character_class, character.character_class);
         assert_eq!(edited.class_choices, character.class_choices);
+    }
+
+    #[test]
+    fn random_generation_honors_class_and_species_constraints() {
+        let character = generate_random_character_with_seed(Some("Wizard"), Some("Dwarf"), 42)
+            .expect("random character");
+        assert_eq!(character.character_class, "Wizard");
+        assert_eq!(character.species, "Dwarf");
+        assert_eq!(
+            Character::from_json(&character.to_json().expect("serialize")),
+            Ok(character)
+        );
+    }
+
+    #[test]
+    fn random_generation_can_produce_every_class_and_species() {
+        for (index, class) in crate::character_wizard_srd_data::CLASS_NAMES
+            .iter()
+            .enumerate()
+        {
+            generate_random_character_with_seed(Some(class), None, index as u64)
+                .unwrap_or_else(|error| panic!("random {class}: {error}"));
+        }
+        for (index, species) in crate::character_wizard_srd_data::SPECIES_NAMES
+            .iter()
+            .enumerate()
+        {
+            generate_random_character_with_seed(None, Some(species), index as u64 + 100)
+                .unwrap_or_else(|error| panic!("random {species}: {error}"));
+        }
     }
 }

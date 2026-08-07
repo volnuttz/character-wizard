@@ -34,6 +34,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Create(CreateArgs),
+    Random(RandomArgs),
     Edit(EditArgs),
     Render(RenderArgs),
     List(ListArgs),
@@ -62,6 +63,31 @@ struct CreateArgs {
     output: Option<PathBuf>,
     #[arg(long, default_value = "character-draft.json")]
     draft: PathBuf,
+    #[arg(long)]
+    force: bool,
+}
+
+#[derive(Args)]
+struct RandomArgs {
+    #[arg(long = "class", value_name = "CLASS")]
+    class_name: Option<String>,
+    #[arg(long, value_name = "SPECIES")]
+    species: Option<String>,
+    #[arg(long)]
+    template: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Path for the character JSON (defaults to <character-name>.json)"
+    )]
+    json: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        value_name = "PATH",
+        help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
+    )]
+    output: Option<PathBuf>,
     #[arg(long)]
     force: bool,
 }
@@ -139,12 +165,63 @@ type CliResult = Result<(), (u8, String)>;
 fn run(cli: Cli) -> CliResult {
     match cli.command {
         Command::Create(options) => create(options),
+        Command::Random(options) => random(options),
         Command::Edit(options) => edit(options),
         Command::Render(options) => render(options),
         Command::List(options) => list(&options),
         Command::Validate { character_json } => validate(&character_json),
         Command::Show(options) => show(&resolve_character_path(&options.character)),
     }
+}
+
+fn random(options: RandomArgs) -> CliResult {
+    let character_class = options
+        .class_name
+        .as_deref()
+        .map(|value| canonical_srd_choice(value, &character_wizard_srd_data::CLASS_NAMES, "class"))
+        .transpose()?;
+    let species = options
+        .species
+        .as_deref()
+        .map(|value| {
+            canonical_srd_choice(value, &character_wizard_srd_data::SPECIES_NAMES, "species")
+        })
+        .transpose()?;
+    let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
+    let character = character_wizard_creation::generate_random_character(
+        character_class.as_deref(),
+        species.as_deref(),
+    )
+    .map_err(|error| (1, error.to_string()))?;
+    let json_output = options
+        .json
+        .unwrap_or_else(|| character_output_path(&character.name, "json"));
+    let pdf_output = options
+        .output
+        .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
+    confirm_overwrite(&[&json_output, &pdf_output], options.force)?;
+    create_parent(&json_output)?;
+    create_parent(&pdf_output)?;
+    fs::write(
+        &json_output,
+        character.to_json().map_err(|error| (1, error))?,
+    )
+    .map_err(|error| {
+        (
+            1,
+            format!("unable to write {}: {error}", json_output.display()),
+        )
+    })?;
+    if let Err(error) =
+        character_wizard_pdf_renderer::render_character(&character, &template, &pdf_output)
+    {
+        let _ = fs::remove_file(&json_output);
+        return Err((1, error));
+    }
+    println!("{} is ready!", character.name);
+    println!("PDF: {}", pdf_output.display());
+    println!("JSON: {}", json_output.display());
+    Ok(())
 }
 
 const DEFAULT_CHARACTER_DIRECTORY: &str = "characters";
@@ -337,6 +414,24 @@ fn character_output_path(name: &str, extension: &str) -> PathBuf {
     PathBuf::from(format!("{stem}.{extension}"))
 }
 
+fn canonical_srd_choice(value: &str, choices: &[&str], label: &str) -> CliResultValue<String> {
+    choices
+        .iter()
+        .find(|choice| choice.eq_ignore_ascii_case(value))
+        .map(|choice| (*choice).to_owned())
+        .ok_or_else(|| {
+            (
+                1,
+                format!(
+                    "unknown SRD {label}: {value} (choose one of: {})",
+                    choices.join(", ")
+                ),
+            )
+        })
+}
+
+type CliResultValue<T> = Result<T, (u8, String)>;
+
 fn collection_directory(directory: Option<&Path>) -> PathBuf {
     directory.map_or_else(
         || PathBuf::from(DEFAULT_CHARACTER_DIRECTORY),
@@ -474,8 +569,8 @@ mod tests {
     use clap::Parser as _;
 
     use super::{
-        CharacterRefArgs, Cli, Command, RenderArgs, character_output_path, collection_characters,
-        render, resolve_character_path,
+        CharacterRefArgs, Cli, Command, RenderArgs, canonical_srd_choice, character_output_path,
+        collection_characters, render, resolve_character_path,
     };
 
     #[test]
@@ -515,6 +610,32 @@ mod tests {
         };
         assert_eq!(options.json, Some(PathBuf::from("records/legolas.json")));
         assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+    }
+
+    #[test]
+    fn random_accepts_case_insensitive_constraints() {
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "random",
+            "--class",
+            "wizard",
+            "--species",
+            "dwarf",
+        ])
+        .expect("parse random");
+        let Command::Random(options) = cli.command else {
+            panic!("expected random command");
+        };
+        assert_eq!(options.class_name.as_deref(), Some("wizard"));
+        assert_eq!(options.species.as_deref(), Some("dwarf"));
+        assert_eq!(
+            canonical_srd_choice(
+                options.class_name.as_deref().expect("class"),
+                &crate::character_wizard_srd_data::CLASS_NAMES,
+                "class"
+            ),
+            Ok("Wizard".to_owned())
+        );
     }
 
     #[test]
