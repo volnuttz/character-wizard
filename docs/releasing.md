@@ -23,8 +23,12 @@ Git tag, executable version, changelog heading, and release title must agree.
 
 4. Smoke-test `validate`, `show`, and `create --from-json` with the supported
    development template. Confirm the optimized executable contains no PDF fixture.
-5. Commit and push the release changes. After all commit workflows pass, create
-   and push an annotated tag:
+5. Commit the release changes on a dedicated branch, push it, and open a pull
+   request into `main`. Do not bypass the `Required main checks` ruleset. After
+   all twelve required checks pass, merge the pull request and record the exact
+   commit now on `main`.
+6. Confirm the Quality, Dependency Audit, and Native binaries workflows pass for
+   that exact `main` commit. Then create and push an annotated tag:
 
    ```console
    git tag -a vX.Y.Z -m "character-wizard X.Y.Z"
@@ -42,11 +46,11 @@ If publication fails after a successful tag build, recover without moving the ta
 gh workflow run "Native binaries" --ref main -f release_tag=vX.Y.Z
 ```
 
-If an authenticated release-commit push does not create workflows, manually
-dispatch `Quality`, `Dependency Audit`, and `Native binaries` on the unchanged
-default branch. Verify that every run uses the exact release commit before
-tagging. If the tag push does not start publication, use the Native binaries
-recovery dispatch above without moving the tag.
+If merging the release pull request does not create workflows, manually dispatch
+`Quality`, `Dependency Audit`, and `Native binaries` on the unchanged default
+branch. Verify that every run uses the exact merged release commit before tagging.
+If the tag push does not start publication, use the Native binaries recovery
+dispatch above without moving the tag.
 Workflow concurrency includes the commit SHA so delayed events for an older
 commit cannot cancel verification of a newer release commit.
 

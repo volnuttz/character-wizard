@@ -17,6 +17,8 @@ All notable changes to character-wizard are documented here. The project follows
 - CI now enforces an 80% line-coverage floor from the measured 81.11% baseline,
   tests both Rust 1.88 and current stable, caches expensive Cargo work, separates
   vulnerability and dependency-policy scans, and pins Actions to immutable SHAs.
+- An active `main` ruleset now requires all twelve CI checks from GitHub Actions;
+  release preparation enters `main` through the same enforced pull-request flow.
 
 ## [0.6.0] - 2026-08-08
 
