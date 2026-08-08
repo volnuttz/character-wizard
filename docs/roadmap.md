@@ -16,7 +16,7 @@ implementation disagree.
 
 ## Current baseline
 
-Version: `0.5.1`
+Version: `0.6.0`
 
 The production repository now provides:
 
@@ -45,7 +45,7 @@ The production repository now provides:
 - [x] Optimized native executable builds and platform archives
 - [x] MIT license and complete package metadata
 - [x] Standalone native operation without Python, uv, or extraction overhead
-- [x] Published v0.4.0 standalone executables and SHA-256 files for Linux x86-64,
+- [x] Published v0.5.1 standalone executables and SHA-256 files for Linux x86-64,
   Windows x86-64, macOS Apple Silicon, and macOS Intel
 - [x] rustfmt, Clippy, Cargo tests/audit/deny, coverage, and repository guidance
 
@@ -543,11 +543,9 @@ Exit criteria:
 Goal: permit opt-in campaign content without mixing non-SRD material into the
 built-in SRD catalog.
 
-- [~] Define a versioned, documented data-pack format for compatible species,
+- [x] Define a versioned, documented data-pack format for compatible species,
   backgrounds, equipment, spells, classes, and other supported catalog records.
-  The v1 manifest envelope, safe JSON-file validation, and species, background,
-  and background-owned equipment schemas are complete; spells and classes
-  remain to be integrated.
+  The v1 manifest envelope and every supported content-family schema are complete.
 - [x] Add `--data <directory>` to load and validate an explicit campaign pack.
 - [x] Keep built-in content strictly sourced from the supplied SRD and separate
   pack provenance from canonical character data.
@@ -555,10 +553,8 @@ built-in SRD catalog.
   constrained random generation, validation, derived speed/senses/traits,
   canonical JSON, and PDF rendering.
 - [x] Add pack species to the quick-create catalog.
-- [~] Define conflicts, stable identifiers, validation, and PDF-rendering
-  behavior for pack-provided content. Add-only species, background, and
-  background-owned equipment IDs and their rendering behavior are complete;
-  spells and classes remain pending.
+- [x] Define conflicts, stable identifiers, validation, and PDF-rendering
+  behavior for every supported pack-provided content family.
 
 #### Custom backgrounds
 

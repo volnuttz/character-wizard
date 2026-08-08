@@ -5,6 +5,8 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-08
+
 ### Changed
 
 - Refactored the native application around a thin executable, encapsulated loaded
@@ -15,6 +17,8 @@ All notable changes to character-wizard are documented here. The project follows
 - Invalid CLI operations now use typed application error categories and write
   their `Error:` message to stderr.
 - Replaced silent unknown ability-name fallbacks with a closed Rust ability type.
+- Excluded the SRD and official character-sheet development PDFs from Cargo
+  source packages as well as native release archives.
 
 ### Added
 
@@ -294,7 +298,8 @@ This release contains no user-facing character-creation or PDF-output changes.
   executables with SHA-256 files.
 - Cross-platform quality, native-binary, and tag-triggered GitHub Release jobs.
 
-[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/volnuttz/character-wizard/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/volnuttz/character-wizard/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/volnuttz/character-wizard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/volnuttz/character-wizard/compare/v0.3.0...v0.4.0

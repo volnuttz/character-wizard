@@ -1,6 +1,6 @@
 [package]
 name = "character-wizard-cli"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
@@ -8,6 +8,7 @@ repository = "https://github.com/volnuttz/character-wizard"
 homepage = "https://github.com/volnuttz/character-wizard"
 authors = ["Cuauhtemoc Contreras <89711776+volnuttz@users.noreply.github.com>"]
 description = "Native level-1 SRD character creation CLI"
+exclude = ["assets/*.pdf"]
 
 [lints.rust]
 unsafe_code = "forbid"
