@@ -9,7 +9,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::character_wizard_domain::{
-    PackBackground, PackEquipment, PackEquipmentKind, PackSpecies, PackSpell,
+    PackBackground, PackClass, PackEquipment, PackEquipmentKind, PackSpecies, PackSpell,
 };
 
 pub const MANIFEST_FILE: &str = "data-pack.json";
@@ -32,6 +32,8 @@ pub struct DataPackManifest {
     pub equipment: Vec<PackEquipment>,
     #[serde(skip)]
     pub spells: Vec<PackSpell>,
+    #[serde(skip)]
+    pub classes: Vec<PackClass>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -41,6 +43,7 @@ pub enum ContentFamily {
     Backgrounds,
     Equipment,
     Spells,
+    Classes,
 }
 
 impl ContentFamily {
@@ -50,14 +53,14 @@ impl ContentFamily {
             Self::Backgrounds => "backgrounds",
             Self::Equipment => "equipment",
             Self::Spells => "spells",
+            Self::Classes => "classes",
         }
     }
 }
 
 /// Load and validate a version-1 external data pack.
 ///
-/// Species and background files use typed, mechanically active schemas. Other
-/// declared content families are currently validated as JSON arrays only.
+/// Every supported content family uses a typed, mechanically active schema.
 ///
 /// # Errors
 ///
@@ -112,7 +115,169 @@ pub fn load(directory: &Path) -> Result<DataPackManifest, String> {
             .map_err(|error| format!("invalid backgrounds data {}: {error}", path.display()))?;
         validate_backgrounds(&manifest.backgrounds, &manifest.equipment)?;
     }
+    if let Some(relative) = manifest.files.get(&ContentFamily::Classes) {
+        let path = directory.join(relative);
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("unable to read classes data: {error}"))?;
+        manifest.classes = serde_json::from_str(&source)
+            .map_err(|error| format!("invalid classes data {}: {error}", path.display()))?;
+        validate_classes(&manifest.classes, &manifest.spells)?;
+    }
     Ok(manifest)
+}
+
+#[allow(clippy::too_many_lines)]
+fn validate_classes(classes: &[PackClass], spells: &[PackSpell]) -> Result<(), String> {
+    let mut ids = std::collections::BTreeSet::new();
+    let mut names = std::collections::BTreeSet::new();
+    for rule in classes {
+        if !is_identifier(&rule.id) || !ids.insert(rule.id.as_str()) {
+            return Err(format!("invalid or duplicate pack class id: {}", rule.id));
+        }
+        let normalized_name = rule.name.trim().to_ascii_lowercase();
+        if normalized_name.is_empty() || !names.insert(normalized_name) {
+            return Err(format!(
+                "invalid or duplicate pack class name: {}",
+                rule.name
+            ));
+        }
+        if crate::character_wizard_srd_data::CLASS_NAMES
+            .iter()
+            .any(|name| {
+                name.eq_ignore_ascii_case(&rule.id) || name.eq_ignore_ascii_case(&rule.name)
+            })
+        {
+            return Err(format!("pack class conflicts with SRD class: {}", rule.id));
+        }
+        let saves: std::collections::BTreeSet<&str> =
+            rule.saving_throws.iter().map(String::as_str).collect();
+        let skills: std::collections::BTreeSet<&str> =
+            rule.skills.iter().map(String::as_str).collect();
+        let armor: std::collections::BTreeSet<&str> =
+            rule.armor_training.iter().map(String::as_str).collect();
+        let weapons: std::collections::BTreeSet<&str> =
+            rule.weapon_training.iter().map(String::as_str).collect();
+        let features: std::collections::BTreeSet<&str> =
+            rule.features.iter().map(String::as_str).collect();
+        let choice_ids: std::collections::BTreeSet<&str> = rule
+            .choices
+            .iter()
+            .map(|choice| choice.id.as_str())
+            .collect();
+        let resource_names: std::collections::BTreeSet<String> = rule
+            .resources
+            .iter()
+            .map(|resource| resource.name.trim().to_ascii_lowercase())
+            .collect();
+        let valid_choices = rule.choices.len() == choice_ids.len()
+            && rule.choices.iter().all(|choice| {
+                let option_ids: std::collections::BTreeSet<&str> = choice
+                    .options
+                    .iter()
+                    .map(|option| option.id.as_str())
+                    .collect();
+                let option_names: std::collections::BTreeSet<String> = choice
+                    .options
+                    .iter()
+                    .map(|option| option.name.trim().to_ascii_lowercase())
+                    .collect();
+                is_identifier(&choice.id)
+                    && !choice.label.trim().is_empty()
+                    && choice.count > 0
+                    && choice.count <= choice.options.len()
+                    && choice.options.len() == option_ids.len()
+                    && choice.options.len() == option_names.len()
+                    && choice.options.iter().all(|option| {
+                        is_identifier(&option.id)
+                            && !option.name.trim().is_empty()
+                            && option
+                                .description
+                                .as_deref()
+                                .is_none_or(|description| !description.trim().is_empty())
+                    })
+            });
+        let valid_resources = rule.resources.len() == resource_names.len()
+            && rule.resources.iter().all(|resource| {
+                !resource.name.trim().is_empty()
+                    && resource.maximum > 0
+                    && !resource.unit.trim().is_empty()
+                    && !resource.recovery.trim().is_empty()
+                    && resource
+                        .detail
+                        .as_deref()
+                        .is_none_or(|detail| !detail.trim().is_empty())
+            });
+        let valid_spellcasting = rule.spellcasting.as_ref().is_none_or(|spellcasting| {
+            let Some(list) =
+                crate::character_wizard_srd_data::class_spell_list(&spellcasting.spell_list)
+            else {
+                return false;
+            };
+            let pack_cantrips = spells
+                .iter()
+                .filter(|spell| spell.level == 0 && spell.lists.contains(&spellcasting.spell_list))
+                .count();
+            let pack_level_one = spells
+                .iter()
+                .filter(|spell| spell.level == 1 && spell.lists.contains(&spellcasting.spell_list))
+                .count();
+            crate::character_wizard_srd_data::SPELLCASTING_ABILITIES
+                .contains(&spellcasting.ability.as_str())
+                && spellcasting.cantrip_count <= list.cantrips.len() + pack_cantrips
+                && spellcasting.prepared_spell_count <= list.level_one_spells.len() + pack_level_one
+                && spellcasting.spell_slots <= 4
+                && !spellcasting.slot_recovery.trim().is_empty()
+                && (spellcasting.cantrip_count > 0 || spellcasting.prepared_spell_count > 0)
+                && ((spellcasting.prepared_spell_count > 0) == (spellcasting.spell_slots > 0))
+        });
+        let valid = [6, 8, 10, 12].contains(&rule.hit_die)
+            && rule.saving_throws.len() == 2
+            && saves.len() == 2
+            && rule.saving_throws.iter().all(|ability| {
+                crate::character_wizard_srd_data::ABILITIES.contains(&ability.as_str())
+            })
+            && rule.skill_count > 0
+            && rule.skill_count <= rule.skills.len()
+            && rule.skills.len() == skills.len()
+            && rule
+                .skills
+                .iter()
+                .all(|skill| crate::character_wizard_srd_data::skill_ability(skill).is_some())
+            && rule.armor_training.len() == armor.len()
+            && rule.armor_training.iter().all(|training| {
+                ["Light", "Medium", "Heavy", "Shields"].contains(&training.as_str())
+            })
+            && rule.weapon_training.len() == weapons.len()
+            && rule
+                .weapon_training
+                .iter()
+                .all(|training| ["Simple", "Martial"].contains(&training.as_str()))
+            && !rule.equipment.is_empty()
+            && rule.equipment.iter().all(|grant| {
+                grant.quantity > 0
+                    && grant.equipment_id.is_none()
+                    && grant
+                        .name
+                        .as_deref()
+                        .is_some_and(|name| !name.trim().is_empty())
+            })
+            && rule.starting_gold > 0
+            && !rule.features.is_empty()
+            && rule.features.len() == features.len()
+            && rule
+                .features
+                .iter()
+                .all(|feature| !feature.trim().is_empty())
+            && rule.weapon_mastery_count <= 3
+            && (rule.weapon_mastery_count == 0 || !rule.weapon_training.is_empty())
+            && valid_choices
+            && valid_resources
+            && valid_spellcasting;
+        if !valid {
+            return Err(format!("invalid pack class mechanics: {}", rule.id));
+        }
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_lines)]
@@ -562,8 +727,10 @@ fn is_safe_relative_path(path: &Path) -> bool {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{load, validate_backgrounds, validate_equipment, validate_spells};
-    use crate::character_wizard_domain::{PackBackground, PackEquipment, PackSpell};
+    use super::{
+        load, validate_backgrounds, validate_classes, validate_equipment, validate_spells,
+    };
+    use crate::character_wizard_domain::{PackBackground, PackClass, PackEquipment, PackSpell};
 
     #[test]
     fn loads_a_versioned_pack_with_declared_json_content() {
@@ -576,7 +743,7 @@ mod tests {
         std::fs::create_dir(&directory).expect("create pack");
         std::fs::write(
             directory.join("data-pack.json"),
-            r#"{"format_version":1,"id":"my-campaign","version":1,"name":"My Campaign","files":{"species":"species.json","backgrounds":"backgrounds.json","equipment":"equipment.json","spells":"spells.json"}}"#,
+            r#"{"format_version":1,"id":"my-campaign","version":1,"name":"My Campaign","files":{"species":"species.json","backgrounds":"backgrounds.json","equipment":"equipment.json","spells":"spells.json","classes":"classes.json"}}"#,
         )
         .expect("write manifest");
         std::fs::write(
@@ -599,15 +766,21 @@ mod tests {
             r#"[{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","S"],"notes":"Duration: Instantaneous","tags":["Damage"]}]"#,
         )
         .expect("write spells");
+        std::fs::write(
+            directory.join("classes.json"),
+            r#"[{"id":"moon-warden","name":"Moon Warden","hit_die":10,"saving_throws":["strength","wisdom"],"skill_count":2,"skills":["Athletics","Insight","Nature","Perception","Survival"],"armor_training":["Light","Medium","Shields"],"weapon_training":["Simple","Martial"],"equipment":[{"name":"Longsword"},{"name":"Scale Mail"},{"name":"Shield"}],"equipment_gold":10,"starting_gold":150,"features":["Moonlit Vigil"],"weapon_mastery_count":2}]"#,
+        )
+        .expect("write classes");
 
         let manifest = load(&directory).expect("load pack");
         std::fs::remove_dir_all(&directory).expect("remove pack");
         assert_eq!(manifest.id, "my-campaign");
-        assert_eq!(manifest.files.len(), 4);
+        assert_eq!(manifest.files.len(), 5);
         assert_eq!(manifest.species[0].id, "moonfolk");
         assert_eq!(manifest.backgrounds[0].id, "lunar-scout");
         assert_eq!(manifest.equipment[0].id, "moonblade");
         assert_eq!(manifest.spells[0].id, "moon-spark");
+        assert_eq!(manifest.classes[0].id, "moon-warden");
     }
 
     #[test]
@@ -699,6 +872,39 @@ mod tests {
             validate_spells(&[invalid_list])
                 .expect_err("unsupported list")
                 .contains("invalid pack spell mechanics")
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_or_conflicting_class_rules() {
+        let conflicting: PackClass = serde_json::from_str(
+            r#"{"id":"fighter","name":"Custom Fighter","hit_die":10,"saving_throws":["strength","constitution"],"skill_count":2,"skills":["Athletics","Perception"],"armor_training":["Light"],"weapon_training":["Simple"],"equipment":[{"name":"Longsword"}],"starting_gold":100,"features":["Watchful"]}"#,
+        )
+        .expect("class record");
+        assert!(
+            validate_classes(&[conflicting], &[])
+                .expect_err("SRD collision")
+                .contains("conflicts with SRD class")
+        );
+
+        let invalid_spellcasting: PackClass = serde_json::from_str(
+            r#"{"id":"moon-mage","name":"Moon Mage","hit_die":7,"saving_throws":["intelligence","intelligence"],"skill_count":3,"skills":["Arcana"],"armor_training":["Mystic"],"weapon_training":["Arcane"],"equipment":[{"equipment_id":"moonblade"}],"starting_gold":0,"features":[],"weapon_mastery_count":4}"#,
+        )
+        .expect("class record");
+        assert!(
+            validate_classes(&[invalid_spellcasting], &[])
+                .expect_err("invalid class mechanics")
+                .contains("invalid pack class mechanics")
+        );
+
+        let invalid_declarative_extensions: PackClass = serde_json::from_str(
+            r#"{"id":"moon-mystic","name":"Moon Mystic","hit_die":8,"saving_throws":["intelligence","wisdom"],"skill_count":2,"skills":["Arcana","Insight","Nature"],"weapon_training":["Simple"],"equipment":[{"name":"Quarterstaff"}],"starting_gold":100,"features":["Moon Lore"],"choices":[{"id":"calling","label":"Calling","count":2,"options":[{"id":"seer","name":"Seer"}]}],"resources":[{"name":"Focus","maximum":0,"unit":"uses","recovery":"Long Rest"}],"spellcasting":{"ability":"wisdom","spell_list":"Artificer","cantrip_count":2,"prepared_spell_count":2,"spell_slots":0,"slot_recovery":""}}"#,
+        )
+        .expect("extended class record");
+        assert!(
+            validate_classes(&[invalid_declarative_extensions], &[])
+                .expect_err("invalid extensions")
+                .contains("invalid pack class mechanics")
         );
     }
 }

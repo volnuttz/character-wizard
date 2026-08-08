@@ -42,11 +42,47 @@ macro_rules! srd_id {
     };
 }
 
-srd_id!(ClassId {
-    Barbarian => "Barbarian", Bard => "Bard", Cleric => "Cleric", Druid => "Druid",
-    Fighter => "Fighter", Monk => "Monk", Paladin => "Paladin", Ranger => "Ranger",
-    Rogue => "Rogue", Sorcerer => "Sorcerer", Warlock => "Warlock", Wizard => "Wizard",
-});
+/// Built-in SRD class names and stable external pack class IDs.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct ClassId(String);
+
+impl ClassId {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for ClassId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ClassId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for ClassId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl FromStr for ClassId {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.trim().is_empty() {
+            Err("class identifier must not be empty".to_owned())
+        } else {
+            Ok(Self(value.to_owned()))
+        }
+    }
+}
 
 /// Built-in SRD background names and stable external pack background IDs.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

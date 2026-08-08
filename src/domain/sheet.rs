@@ -2,8 +2,6 @@
 //!
 //! Renderers use this boundary instead of querying SRD catalog data themselves.
 
-use crate::character_wizard_srd_data as srd;
-
 use crate::Character;
 
 /// A calculated saving throw suitable for presentation.
@@ -29,14 +27,13 @@ impl<'a> CharacterSheet<'a> {
     /// Return the class hit die.
     #[must_use]
     pub fn hit_die(self) -> u8 {
-        srd::class_rule(&self.character.character_class).map_or(0, |rule| rule.hit_die)
+        self.character.class_hit_die()
     }
 
     /// Calculate one ability saving throw.
     #[must_use]
     pub fn saving_throw(self, ability: &str) -> SavingThrow {
-        let proficient = srd::class_rule(&self.character.character_class)
-            .is_some_and(|rule| rule.saves.contains(&ability));
+        let proficient = self.character.class_saving_throws().contains(&ability);
         let modifier = self.character.abilities.modifier(ability)
             + if proficient {
                 i16::from(self.character.proficiency_bonus())

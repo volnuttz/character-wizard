@@ -56,7 +56,7 @@ pub fn render_character(
     let mut values = BTreeMap::from([
         ("Text1".to_owned(), character.name.clone()),
         ("Text6".to_owned(), character.background_name().to_owned()),
-        ("Text7".to_owned(), character.character_class.to_string()),
+        ("Text7".to_owned(), character.class_name().to_owned()),
         ("Text8".to_owned(), character.species_name().to_owned()),
         ("Text9".to_owned(), String::new()),
         ("Text11".to_owned(), character.level.to_string()),
@@ -303,7 +303,7 @@ mod tests {
     use super::render_character;
     use crate::{
         character_wizard_domain::{
-            Character, PackBackground, PackEquipment, PackSpecies, PackSpell,
+            Character, PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell,
         },
         pdf_renderer::pdf_renderer_field_writer::read_field_value,
     };
@@ -444,6 +444,105 @@ mod tests {
             let value = read_field_value(&output, &field).expect("read custom spell checkbox");
             assert_ne!(value.as_name().expect("checkbox value"), b"Off");
         }
+        std::fs::remove_file(output).expect("remove proof PDF");
+    }
+
+    #[test]
+    fn pack_class_mechanics_are_stored_in_existing_class_fields() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let mut character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        character.character_class = "moon-warden".parse().expect("class id");
+        character.resolved_pack_class = Some(
+            serde_json::from_str::<PackClass>(
+                r#"{"id":"moon-warden","name":"Moon Warden","hit_die":10,"saving_throws":["strength","wisdom"],"skill_count":2,"skills":["Athletics","Perception","Survival"],"armor_training":["Light","Medium","Shields"],"weapon_training":["Simple","Martial"],"equipment":[{"name":"Longsword"},{"name":"Scale Mail"},{"name":"Shield"}],"equipment_gold":10,"starting_gold":150,"features":["Moonlit Vigil","Lunar Challenge"],"weapon_mastery_count":2,"choices":[{"id":"lunar-calling","label":"Lunar Calling","count":1,"options":[{"id":"guardian","name":"Guardian","description":"Stand watch over allies."},{"id":"seer","name":"Seer"}]}],"resources":[{"name":"Moonlight Resolve","maximum":2,"unit":"uses","recovery":"regain all on Long Rest","detail":"fuel Moon Warden features"}],"spellcasting":{"ability":"wisdom","spell_list":"Druid","cantrip_count":1,"prepared_spell_count":1,"spell_slots":2,"slot_recovery":"Long Rest"}}"#,
+            )
+            .expect("pack class"),
+        );
+        character.class_skills = ["Athletics".to_owned(), "Perception".to_owned()]
+            .into_iter()
+            .collect();
+        character.class_choices = crate::character_wizard_domain::ClassChoices::default();
+        character.class_choices.weapon_masteries = ["Longsword".to_owned(), "Shortbow".to_owned()]
+            .into_iter()
+            .collect();
+        character.class_choices.pack_choices.insert(
+            "lunar-calling".to_owned(),
+            ["guardian".to_owned()].into_iter().collect(),
+        );
+        character
+            .class_choices
+            .cantrips
+            .insert("moon-spark".to_owned());
+        character
+            .class_choices
+            .prepared_spells
+            .insert("moon-shield".to_owned());
+        character.resolved_pack_spells = Some(
+            serde_json::from_str::<Vec<PackSpell>>(
+                r#"[{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Druid"],"casting_time":"Action","range":"60 feet","components":["V","S"],"notes":"Duration: Instantaneous"},{"id":"moon-shield","name":"Moon Shield","level":1,"school":"Abjuration","lists":["Druid"],"casting_time":"Reaction","range":"Self","components":["V","S"],"notes":"Duration: 1 round"}]"#,
+            )
+            .expect("pack spells"),
+        );
+        character.class_equipment_option = "A".to_owned();
+        let output = std::env::temp_dir().join(format!(
+            "character-wizard-pack-class-render-{}-{}.pdf",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        render_character(
+            &character,
+            std::path::Path::new("assets/character-sheet.pdf"),
+            &output,
+        )
+        .expect("render character");
+        for (field, expected) in [
+            ("Text7", "Moon Warden"),
+            ("Text14", "11"),
+            ("Text17", "1d10"),
+            ("Text59", "Simple and Martial"),
+            ("Text111", "Wisdom"),
+            ("Text112", "2"),
+        ] {
+            let value = read_field_value(&output, field).expect("read class field");
+            assert_eq!(value.as_str().expect("text value"), expected.as_bytes());
+        }
+        let traits = read_field_value(&output, "Text54").expect("read class traits");
+        let traits = std::str::from_utf8(traits.as_str().expect("text value")).expect("UTF-8");
+        assert!(traits.contains("Moonlit Vigil"));
+        assert!(traits.contains("Lunar Calling: Guardian"));
+        assert!(traits.contains("Weapon Mastery"));
+        let resources = read_field_value(&output, "Text55").expect("read class resources");
+        let resources =
+            std::str::from_utf8(resources.as_str().expect("text value")).expect("UTF-8");
+        assert!(resources.contains("Moonlight Resolve: 2 uses"));
+        let spell_row = character
+            .spell_table_entries()
+            .iter()
+            .position(|spell| spell.name == "Moon Spark")
+            .expect("custom spell row");
+        let spell_name = read_field_value(&output, &format!("Text106.{spell_row}"))
+            .expect("read pack class spell");
+        assert_eq!(spell_name.as_str().expect("text value"), b"Moon Spark");
+        let inventory = read_field_value(&output, "Text99").expect("read class equipment");
+        let inventory =
+            std::str::from_utf8(inventory.as_str().expect("text value")).expect("UTF-8");
+        assert!(inventory.contains("Longsword"));
+        assert!(inventory.contains("Scale Mail"));
+        for field in [
+            "Check Box37",
+            "Check Box21",
+            "Check Box13",
+            "Check Box14",
+            "Check Box12",
+        ] {
+            let value = read_field_value(&output, field).expect("read class checkbox");
+            assert_ne!(value.as_name().expect("checkbox value"), b"Off");
+        }
+        let document = lopdf::Document::load(&output).expect("reopen output");
+        assert_eq!(document.get_pages().len(), 2);
+        assert!(document.catalog().expect("catalog").has(b"AcroForm"));
         std::fs::remove_file(output).expect("remove proof PDF");
     }
 }

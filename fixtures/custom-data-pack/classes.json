@@ -1,0 +1,87 @@
+[
+  {
+    "id": "moon-warden",
+    "name": "Moon Warden",
+    "hit_die": 10,
+    "saving_throws": [
+      "strength",
+      "wisdom"
+    ],
+    "skill_count": 2,
+    "skills": [
+      "Animal Handling",
+      "Athletics",
+      "Insight",
+      "Investigation",
+      "Nature",
+      "Perception",
+      "Survival"
+    ],
+    "armor_training": [
+      "Light",
+      "Medium",
+      "Shields"
+    ],
+    "weapon_training": [
+      "Simple",
+      "Martial"
+    ],
+    "equipment": [
+      {
+        "name": "Longsword"
+      },
+      {
+        "name": "Scale Mail"
+      },
+      {
+        "name": "Shield"
+      },
+      {
+        "name": "Explorer's Pack"
+      }
+    ],
+    "equipment_gold": 10,
+    "starting_gold": 150,
+    "features": [
+      "Moonlit Vigil",
+      "Lunar Challenge"
+    ],
+    "weapon_mastery_count": 2,
+    "choices": [
+      {
+        "id": "lunar-calling",
+        "label": "Lunar Calling",
+        "count": 1,
+        "options": [
+          {
+            "id": "guardian",
+            "name": "Guardian",
+            "description": "Stand watch over allies beneath the moon."
+          },
+          {
+            "id": "seer",
+            "name": "Seer",
+            "description": "Read omens in moonlight and shadow."
+          }
+        ]
+      }
+    ],
+    "resources": [
+      {
+        "name": "Moonlight Resolve",
+        "maximum": 2,
+        "unit": "uses",
+        "recovery": "regain all on Long Rest",
+        "detail": "fuel Moon Warden features"
+      }
+    ],
+    "spellcasting": {
+      "ability": "wisdom",
+      "spell_list": "Druid",
+      "cantrip_count": 2,
+      "prepared_spell_count": 2,
+      "spell_slots": 2,
+      "slot_recovery": "Long Rest"
+    }
+  }
+]

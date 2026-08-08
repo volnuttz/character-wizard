@@ -196,11 +196,23 @@ fn run(cli: Cli) -> CliResult {
 }
 
 fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
-    let character_class = options
-        .class_name
-        .as_deref()
-        .map(|value| canonical_srd_choice(value, &character_wizard_srd_data::CLASS_NAMES, "class"))
-        .transpose()?;
+    let requested_class = options.class_name.as_deref();
+    let custom_class = requested_class.and_then(|value| {
+        pack.and_then(|pack| {
+            pack.classes.iter().find(|rule| {
+                rule.id.eq_ignore_ascii_case(value) || rule.name.eq_ignore_ascii_case(value)
+            })
+        })
+    });
+    let character_class = if custom_class.is_some() {
+        requested_class.map(str::to_owned)
+    } else {
+        requested_class
+            .map(|value| {
+                canonical_srd_choice(value, &character_wizard_srd_data::CLASS_NAMES, "class")
+            })
+            .transpose()?
+    };
     let requested_species = options.species.as_deref();
     let requested_background = options.background.as_deref();
     let custom_background = requested_background.and_then(|value| {
@@ -245,6 +257,7 @@ fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         background.as_deref(),
         species.as_deref(),
         pack.map(data_pack_reference),
+        pack.map_or(&[], |pack| pack.classes.as_slice()),
         pack.map_or(&[], |pack| pack.species.as_slice()),
         pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
         pack.map_or(&[], |pack| pack.equipment.as_slice()),
@@ -296,7 +309,7 @@ fn list(options: &ListArgs, pack: Option<&data_pack::DataPackManifest>) -> CliRe
         println!(
             "{}\t{}\t{}\t{}",
             character.name,
-            character.character_class,
+            character.class_name(),
             character.level,
             character.species_name()
         );
@@ -323,6 +336,7 @@ fn edit(options: EditArgs, pack: Option<&data_pack::DataPackManifest>) -> CliRes
     let character = load_character(&character_path, pack)?;
     let Some(mut edited) = character_wizard_creation::run_edit_interactive_with_pack(
         &character,
+        pack.map_or(&[], |pack| pack.classes.as_slice()),
         pack.map_or(&[], |pack| pack.species.as_slice()),
         pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
         pack.map_or(&[], |pack| pack.equipment.as_slice()),
@@ -388,7 +402,7 @@ fn show(path: &Path, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
         "Identity      Level {} {} {}",
         character.level,
         character.species_name(),
-        character.character_class
+        character.class_name()
     );
     println!("Background    {}", character.background_name());
     println!("Alignment     {}", character.alignment);
@@ -434,6 +448,7 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
     } else if options.quick {
         character_wizard_creation::run_quick_interactive_with_pack(
             pack_reference.as_ref(),
+            pack.map_or(&[], |pack| pack.classes.as_slice()),
             pack.map_or(&[], |pack| pack.species.as_slice()),
             pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
             pack.map_or(&[], |pack| pack.equipment.as_slice()),
@@ -449,6 +464,7 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         match character_wizard_creation::run_interactive_with_pack(
             &draft,
             pack_reference.clone(),
+            pack.map_or(&[], |pack| pack.classes.as_slice()),
             pack.map_or(&[], |pack| pack.species.as_slice()),
             pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
             pack.map_or(&[], |pack| pack.equipment.as_slice()),
@@ -674,6 +690,16 @@ fn resolve_pack_content(
     character: &mut Character,
     pack: Option<&data_pack::DataPackManifest>,
 ) -> CliResult {
+    character
+        .resolve_pack_class(pack.map_or(&[], |pack| pack.classes.as_slice()))
+        .map_err(|error| {
+            (
+                1,
+                pack.map_or(error.clone(), |pack| {
+                    format!("{error} in data pack {}", pack.id)
+                }),
+            )
+        })?;
     character
         .resolve_pack_background(pack.map_or(&[], |pack| pack.backgrounds.as_slice()))
         .map_err(|error| {

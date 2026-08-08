@@ -5,6 +5,7 @@
     "level": 0,
     "school": "Evocation",
     "lists": [
+      "Druid",
       "Wizard"
     ],
     "casting_time": "Action",
@@ -24,6 +25,7 @@
     "level": 0,
     "school": "Illusion",
     "lists": [
+      "Druid",
       "Wizard"
     ],
     "casting_time": "Action",
@@ -42,6 +44,7 @@
     "level": 1,
     "school": "Abjuration",
     "lists": [
+      "Druid",
       "Wizard"
     ],
     "casting_time": "Reaction",

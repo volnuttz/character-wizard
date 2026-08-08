@@ -9,6 +9,7 @@ background records are mechanically active for interactive creation, editing,
 constrained random generation, and quick creation. Typed custom equipment is
 active only when granted by a custom background. Custom level 0 and level 1
 spells are active for supported Magic Initiate and built-in class spell choices.
+Basic declarative custom classes are active across the same creation paths.
 
 ## Version 1 manifest
 
@@ -24,15 +25,16 @@ Place `data-pack.json` at the pack directory root:
     "species": "species.json",
     "backgrounds": "backgrounds.json",
     "equipment": "equipment.json",
-    "spells": "spells.json"
+    "spells": "spells.json",
+    "classes": "classes.json"
   }
 }
 ```
 
 `id` uses lowercase letters, digits, and hyphens. `version` is a positive pack
 revision and must change whenever published mechanics change. The supported file families
-are `species`, `backgrounds`, `equipment`, and `spells`. Paths must stay inside
-the pack directory, and each declared file must contain a JSON array.
+are `species`, `backgrounds`, `equipment`, `spells`, and `classes`. Paths must
+stay inside the pack directory, and each declared file must contain a JSON array.
 
 Use it with any command, for example:
 
@@ -212,3 +214,117 @@ when their `lists` membership matches. Loading a character with a pack spell
 requires the exact recorded pack version, just like custom species,
 backgrounds, and equipment. School and tags are validated descriptive metadata;
 packs cannot attach executable mechanics or new prompt behavior to a spell.
+
+## Class records
+
+Class IDs are add-only and cannot collide with built-in SRD class names. The ID
+is stored in canonical character JSON; creation, review, collection, `show`, and
+PDF output use the display name.
+
+The initial class slice is level-1, declarative, and non-spellcasting:
+
+```json
+[
+  {
+    "id": "moon-warden",
+    "name": "Moon Warden",
+    "hit_die": 10,
+    "saving_throws": ["strength", "wisdom"],
+    "skill_count": 2,
+    "skills": [
+      "Animal Handling",
+      "Athletics",
+      "Insight",
+      "Nature",
+      "Perception",
+      "Survival"
+    ],
+    "armor_training": ["Light", "Medium", "Shields"],
+    "weapon_training": ["Simple", "Martial"],
+    "equipment": [
+      { "name": "Longsword" },
+      { "name": "Scale Mail" },
+      { "name": "Shield" }
+    ],
+    "equipment_gold": 10,
+    "starting_gold": 150,
+    "features": ["Moonlit Vigil", "Lunar Challenge"],
+    "weapon_mastery_count": 2
+  }
+]
+```
+
+Supported Hit Dice are d6, d8, d10, and d12. A class grants exactly two distinct
+ability saving throws and selects `skill_count` different proficiencies from its
+SRD skill pool. Armor training accepts `Light`, `Medium`, `Heavy`, and `Shields`;
+weapon training accepts `Simple` and `Martial`. Weapon Mastery may select up to
+three built-in weapons from a trained category.
+
+The fixed `A` equipment package uses named items and carries `equipment_gold`;
+the `Gold` route skips the package and grants `starting_gold`. Class equipment
+does not accept custom `equipment_id` references in this first slice, preserving
+the background-owned custom-equipment boundary.
+
+Features are fixed display descriptions. Optional declarative extensions add
+stable descriptive choices, fixed level-1 resources, and basic spellcasting:
+
+```json
+{
+  "choices": [
+    {
+      "id": "lunar-calling",
+      "label": "Lunar Calling",
+      "count": 1,
+      "options": [
+        {
+          "id": "guardian",
+          "name": "Guardian",
+          "description": "Stand watch over allies beneath the moon."
+        },
+        {
+          "id": "seer",
+          "name": "Seer"
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "name": "Moonlight Resolve",
+      "maximum": 2,
+      "unit": "uses",
+      "recovery": "regain all on Long Rest",
+      "detail": "fuel Moon Warden features"
+    }
+  ],
+  "spellcasting": {
+    "ability": "wisdom",
+    "spell_list": "Druid",
+    "cantrip_count": 2,
+    "prepared_spell_count": 2,
+    "spell_slots": 2,
+    "slot_recovery": "Long Rest"
+  }
+}
+```
+
+Choice and option IDs use the same stable lowercase identifier format as other
+pack content. Selected option IDs are stored under `class_choices.pack_choices`
+in canonical character JSON; labels, names, and descriptions are resolved from
+the exact pack for reviews and PDFs. Choices are descriptive and do not grant
+hidden calculations or execute behavior.
+
+Resources have a fixed positive maximum, unit, recovery text, and optional
+detail. They are level-1 display and tracking metadata; formulas based on ability
+scores or character level are not supported.
+
+Spellcasting selects one supported Bard, Cleric, Druid, Paladin, Ranger,
+Sorcerer, Warlock, or Wizard list, one Intelligence, Wisdom, or Charisma ability,
+creation-time cantrip and prepared-spell counts, and a fixed number of level-1
+slots. Pack spells declaring membership in the borrowed list join its SRD spell
+catalog. The custom class does not inherit the source class's features,
+always-prepared spells, spellbook, resources, or bespoke prompts.
+
+Custom classes still cannot define tools, Expertise, executable scripts,
+arbitrary formulas or effects, class-specific prompt code, or progression beyond
+the current level-1 creation scope.

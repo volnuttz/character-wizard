@@ -592,21 +592,21 @@ built-in SRD catalog.
 
 #### Custom classes
 
-- [ ] After custom spells, define an add-only basic custom-class schema with a
+- [x] After custom spells, define an add-only basic custom-class schema with a
   stable ID, display name, Hit Die, saving throws, skill pool and selection
   count, armor and weapon training, starting gold/equipment, fixed level-1
   feature descriptions, and an optional Weapon Mastery count.
-- [ ] Keep the first class slice declarative and non-spellcasting, with no
+- [x] Keep the first class slice declarative and non-spellcasting, with no
   bespoke class-specific prompts, executable scripts, or arbitrary pack code.
-- [ ] Add basic pack classes to interactive creation, editing, constrained
+- [x] Add basic pack classes to interactive creation, editing, constrained
   random generation, and quick creation with stable canonical references.
-- [ ] Integrate pack classes with HP, proficiencies, skill exclusions, starting
+- [x] Integrate pack classes with HP, proficiencies, skill exclusions, starting
   equipment, inventory, review and `show` output, validation, and PDF summaries.
-- [ ] Add deterministic creation, edit, random, quick-create, validation,
+- [x] Add deterministic creation, edit, random, quick-create, validation,
   derived-value, and PDF write/read-back tests for the basic class slice.
-- [ ] Extend the declarative class model later with reusable choice primitives,
-  resources, and optional spellcasting that references validated built-in or
-  pack spell lists.
+- [x] Extend the declarative class model with stable descriptive choice
+  primitives, fixed level-1 resources, and optional spellcasting that borrows a
+  validated built-in list and includes pack spells assigned to that list.
 
 Exit criteria:
 

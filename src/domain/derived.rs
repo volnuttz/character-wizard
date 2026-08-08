@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use crate::character_wizard_srd_data as srd;
 
 use super::record::{
-    Character, ClassResource, CoinPurse, EquipmentItem, PackEquipment, PackEquipmentKind,
-    SpellSlotPool, SpellTableEntry, SpellcastingProfile, WeaponAttack,
+    Character, ClassResource, CoinPurse, EquipmentItem, PackClass, PackEquipment,
+    PackEquipmentKind, SpellSlotPool, SpellTableEntry, SpellcastingProfile, WeaponAttack,
 };
 
 #[derive(Clone, Copy)]
@@ -31,6 +31,36 @@ struct WeaponRuleView<'a> {
 type InventoryKey = (String, Option<String>, Option<String>);
 
 impl Character {
+    fn pack_class(&self) -> Option<&PackClass> {
+        self.resolved_pack_class.as_ref()
+    }
+
+    #[must_use]
+    pub fn class_name(&self) -> &str {
+        self.pack_class()
+            .map_or_else(|| self.character_class.as_str(), |rule| rule.name.as_str())
+    }
+
+    #[must_use]
+    pub(crate) fn class_hit_die(&self) -> u8 {
+        self.pack_class().map_or_else(
+            || srd::class_rule(&self.character_class).map_or(0, |rule| rule.hit_die),
+            |rule| rule.hit_die,
+        )
+    }
+
+    #[must_use]
+    pub(crate) fn class_saving_throws(&self) -> Vec<&str> {
+        self.pack_class().map_or_else(
+            || {
+                srd::class_rule(&self.character_class)
+                    .map_or(&[][..], |rule| rule.saves)
+                    .to_vec()
+            },
+            |rule| rule.saving_throws.iter().map(String::as_str).collect(),
+        )
+    }
+
     fn pack_spell(&self, reference: &str) -> Option<&super::record::PackSpell> {
         self.resolved_pack_spells
             .as_deref()
@@ -236,7 +266,7 @@ impl Character {
 
     #[must_use]
     pub fn hit_points(&self) -> i16 {
-        i16::from(srd::class_rule(&self.character_class).map_or(0, |rule| rule.hit_die))
+        i16::from(self.class_hit_die())
             + self.abilities.modifier("constitution")
             + i16::from(self.species == "Dwarf")
     }
@@ -347,6 +377,24 @@ impl Character {
                 }
             }
         }
+        if self.class_equipment_option != "Gold"
+            && let Some(class) = self.pack_class()
+        {
+            for item in &class.equipment {
+                let Some(name) = item.name.as_deref() else {
+                    continue;
+                };
+                let weapon = srd::weapon_rule(name).map(|_| name.to_owned());
+                let key = (name.to_owned(), weapon, None);
+                if let Some((_, quantity)) =
+                    merged.iter_mut().find(|(existing, _)| *existing == key)
+                {
+                    *quantity += item.quantity;
+                } else {
+                    merged.push((key, item.quantity));
+                }
+            }
+        }
         if self.background_equipment_option == "A"
             && let Some(background) = &self.resolved_pack_background
         {
@@ -421,10 +469,18 @@ impl Character {
     #[must_use]
     pub fn coins(&self) -> CoinPurse {
         let class_gold = if self.class_equipment_option == "Gold" {
-            srd::class_starting_gold(&self.character_class).unwrap_or(0)
+            self.pack_class().map_or_else(
+                || srd::class_starting_gold(&self.character_class).unwrap_or(0),
+                |rule| rule.starting_gold,
+            )
         } else {
-            srd::class_equipment(&self.character_class, &self.class_equipment_option)
-                .map_or(0, |(_, gold)| gold)
+            self.pack_class().map_or_else(
+                || {
+                    srd::class_equipment(&self.character_class, &self.class_equipment_option)
+                        .map_or(0, |(_, gold)| gold)
+                },
+                |rule| rule.equipment_gold,
+            )
         };
         let background_gold = if self.background_equipment_option == "Gold" {
             self.resolved_pack_background
@@ -608,6 +664,19 @@ impl Character {
 
     #[must_use]
     pub fn spell_slots(&self) -> Vec<SpellSlotPool> {
+        if let Some(spellcasting) = self
+            .pack_class()
+            .and_then(|class| class.spellcasting.as_ref())
+        {
+            return (spellcasting.spell_slots > 0)
+                .then(|| SpellSlotPool {
+                    level: 1,
+                    total: spellcasting.spell_slots,
+                    recovery: spellcasting.slot_recovery.clone(),
+                })
+                .into_iter()
+                .collect();
+        }
         srd::level_one_spell_slots(&self.character_class).map_or_else(
             Vec::new,
             |(level, total, recovery)| {
@@ -642,7 +711,17 @@ impl Character {
     #[must_use]
     pub fn spellcasting_profiles(&self) -> Vec<SpellcastingProfile> {
         let mut profiles = Vec::new();
-        if let Some(ability) = srd::class_spellcasting_ability(&self.character_class) {
+        if let Some(spellcasting) = self
+            .pack_class()
+            .and_then(|class| class.spellcasting.as_ref())
+        {
+            profiles.push(self.spellcasting_profile(
+                format!("{} Spellcasting", self.class_name()),
+                &spellcasting.ability,
+                self.spell_slots(),
+                Vec::new(),
+            ));
+        } else if let Some(ability) = srd::class_spellcasting_ability(&self.character_class) {
             profiles.push(self.spellcasting_profile(
                 format!("{} Spellcasting", self.character_class),
                 ability,
@@ -813,7 +892,9 @@ impl Character {
 
     #[must_use]
     pub fn armor_training(&self) -> String {
-        if self.class_choices.divine_order.as_deref() == Some("Protector") {
+        if let Some(rule) = self.pack_class() {
+            rule.armor_training.join(", ")
+        } else if self.class_choices.divine_order.as_deref() == Some("Protector") {
             "Light, Medium, Heavy, Shields".to_owned()
         } else if self.class_choices.primal_order.as_deref() == Some("Warden") {
             "Light, Medium, Shields".to_owned()
@@ -826,7 +907,9 @@ impl Character {
 
     #[must_use]
     pub fn weapon_proficiencies(&self) -> String {
-        if self.class_choices.divine_order.as_deref() == Some("Protector")
+        if let Some(rule) = self.pack_class() {
+            rule.weapon_training.join(" and ")
+        } else if self.class_choices.divine_order.as_deref() == Some("Protector")
             || self.class_choices.primal_order.as_deref() == Some("Warden")
         {
             "Simple and Martial".to_owned()
@@ -858,11 +941,17 @@ impl Character {
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn class_traits(&self) -> Vec<String> {
-        let mut traits: Vec<String> = srd::class_features(&self.character_class)
-            .iter()
-            .map(|value| (*value).to_owned())
-            .collect();
+        let mut traits: Vec<String> = self.pack_class().map_or_else(
+            || {
+                srd::class_features(&self.character_class)
+                    .iter()
+                    .map(|value| (*value).to_owned())
+                    .collect()
+            },
+            |rule| rule.features.clone(),
+        );
         if !self.class_choices.weapon_masteries.is_empty() {
             let selected = self
                 .class_choices
@@ -877,6 +966,28 @@ impl Character {
                 .collect::<Vec<_>>()
                 .join(", ");
             traits.push(format!("Weapon Mastery: {selected}"));
+        }
+        if let Some(class) = self.pack_class() {
+            for choice in &class.choices {
+                let selected = self
+                    .class_choices
+                    .pack_choices
+                    .get(&choice.id)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|id| choice.options.iter().find(|option| option.id == *id))
+                    .map(|option| {
+                        option.description.as_ref().map_or_else(
+                            || option.name.clone(),
+                            |description| format!("{} — {description}", option.name),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if !selected.is_empty() {
+                    traits.push(format!("{}: {selected}", choice.label));
+                }
+            }
         }
         if !self.class_choices.tools.is_empty() {
             traits.push(format!(
@@ -915,7 +1026,7 @@ impl Character {
                 self.class_choices
                     .cantrips
                     .iter()
-                    .cloned()
+                    .map(|spell| self.spell_name(spell).to_owned())
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -926,7 +1037,7 @@ impl Character {
                 self.class_choices
                     .spellbook_spells
                     .iter()
-                    .cloned()
+                    .map(|spell| self.spell_name(spell).to_owned())
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -937,7 +1048,7 @@ impl Character {
                 self.class_choices
                     .prepared_spells
                     .iter()
-                    .cloned()
+                    .map(|spell| self.spell_name(spell).to_owned())
                     .collect::<Vec<_>>()
                     .join(", ")
             ));
@@ -1077,6 +1188,19 @@ impl Character {
 
     #[must_use]
     pub fn class_resources(&self) -> Vec<ClassResource> {
+        if let Some(class) = self.pack_class() {
+            return class
+                .resources
+                .iter()
+                .map(|resource| ClassResource {
+                    name: resource.name.clone(),
+                    maximum: resource.maximum,
+                    unit: resource.unit.clone(),
+                    recovery: resource.recovery.clone(),
+                    detail: resource.detail.clone(),
+                })
+                .collect();
+        }
         let resource = match self.character_class.as_str() {
             "Barbarian" => ClassResource {
                 name: "Rage".to_owned(),

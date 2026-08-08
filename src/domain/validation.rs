@@ -6,9 +6,31 @@ use crate::character_wizard_srd_data as srd;
 
 use crate::domain::CharacterSheet;
 
-use super::record::{Character, PackBackground, PackEquipment, PackSpecies, PackSpell};
+use super::record::{Character, PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell};
 
 impl Character {
+    /// Resolve the exact custom class referenced by this character.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the class ID is absent or its resolved choices are invalid.
+    pub fn resolve_pack_class(&mut self, classes: &[PackClass]) -> Result<(), String> {
+        self.resolved_pack_class = if srd::class_rule(&self.character_class).is_some() {
+            None
+        } else {
+            Some(
+                classes
+                    .iter()
+                    .find(|rule| rule.id == self.character_class.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!("unknown class in data pack: {}", self.character_class)
+                    })?,
+            )
+        };
+        self.validate()
+    }
+
     /// Resolve custom spells used by class and Origin-feat choices.
     ///
     /// # Errors
@@ -151,6 +173,9 @@ impl Character {
             return Ok(());
         }
         self.validate_origin_choices()?;
+        if srd::class_rule(&self.character_class).is_none() && self.resolved_pack_class.is_none() {
+            return Ok(());
+        }
         self.validate_class_choices()?;
         self.validate_equipment_choices()
     }
@@ -162,7 +187,10 @@ impl Character {
         if !srd::ALIGNMENTS.contains(&self.alignment.as_str()) {
             return Err(format!("invalid alignment: {}", self.alignment));
         }
-        if srd::class_rule(&self.character_class).is_none() {
+        if srd::class_rule(&self.character_class).is_none()
+            && self.resolved_pack_class.is_none()
+            && self.data_pack.is_none()
+        {
             return Err(format!("unknown SRD class: {}", self.character_class));
         }
         if srd::background_rule(&self.background).is_none()
@@ -461,22 +489,29 @@ impl Character {
 
     #[allow(clippy::too_many_lines)]
     fn validate_class_choices(&self) -> Result<(), String> {
-        let rule = srd::class_rule(&self.character_class).expect("validated class");
-        if self.class_skills.len() != rule.skill_count {
+        let srd_rule = srd::class_rule(&self.character_class);
+        let pack_rule = self.resolved_pack_class.as_ref();
+        let skill_count = pack_rule.map_or_else(
+            || srd_rule.expect("validated class").skill_count,
+            |rule| rule.skill_count,
+        );
+        let skills: Vec<&str> = pack_rule.map_or_else(
+            || srd_rule.expect("validated class").skills.to_vec(),
+            |rule| rule.skills.iter().map(String::as_str).collect(),
+        );
+        if self.class_skills.len() != skill_count {
             return Err(format!(
                 "{} requires exactly {} class skills",
-                self.character_class, rule.skill_count
+                self.class_name(),
+                skill_count
             ));
         }
         if self
             .class_skills
             .iter()
-            .any(|skill| !rule.skills.contains(&skill.as_str()))
+            .any(|skill| !skills.contains(&skill.as_str()))
         {
-            return Err(format!(
-                "invalid {} class skill choice",
-                self.character_class
-            ));
+            return Err(format!("invalid {} class skill choice", self.class_name()));
         }
         let mut granted: BTreeSet<&str> = self.background_skills().into_iter().collect();
         granted.extend(
@@ -494,7 +529,10 @@ impl Character {
         {
             return Err("class skills must not duplicate another granted proficiency".to_owned());
         }
-        let mastery_count = srd::weapon_mastery_count(&self.character_class);
+        let mastery_count = pack_rule.map_or_else(
+            || srd::weapon_mastery_count(&self.character_class),
+            |rule| rule.weapon_mastery_count,
+        );
         if self.class_choices.weapon_masteries.len() != mastery_count {
             return Err(format!(
                 "{} requires exactly {mastery_count} weapon masteries",
@@ -502,20 +540,60 @@ impl Character {
             ));
         }
         if self.class_choices.weapon_masteries.iter().any(|weapon| {
-            srd::weapon_rule(weapon).is_none_or(|rule| {
-                (self.character_class == "Barbarian" && rule.kind != "Melee")
-                    || (self.character_class == "Rogue"
-                        && rule.category != "Simple"
-                        && !rule
-                            .properties
+            srd::weapon_rule(weapon).is_none_or(|weapon_rule| {
+                pack_rule.map_or_else(
+                    || {
+                        (self.character_class == "Barbarian" && weapon_rule.kind != "Melee")
+                            || (self.character_class == "Rogue"
+                                && weapon_rule.category != "Simple"
+                                && !weapon_rule
+                                    .properties
+                                    .iter()
+                                    .any(|property| ["Finesse", "Light"].contains(property)))
+                    },
+                    |class| {
+                        !class
+                            .weapon_training
                             .iter()
-                            .any(|property| ["Finesse", "Light"].contains(property)))
+                            .any(|training| training == weapon_rule.category)
+                    },
+                )
             })
         }) {
             return Err(format!(
                 "invalid {} weapon mastery choice",
                 self.character_class
             ));
+        }
+        if let Some(class) = pack_rule {
+            if self.class_choices.pack_choices.len() != class.choices.len() {
+                return Err(format!(
+                    "{} requires exactly one selection set for each class choice",
+                    self.class_name()
+                ));
+            }
+            for choice in &class.choices {
+                let Some(selected) = self.class_choices.pack_choices.get(&choice.id) else {
+                    return Err(format!("missing {} choice", choice.label));
+                };
+                if selected.len() != choice.count
+                    || selected
+                        .iter()
+                        .any(|option| !choice.options.iter().any(|rule| rule.id == *option))
+                {
+                    return Err(format!("invalid {} choice", choice.label));
+                }
+            }
+            if self
+                .class_choices
+                .pack_choices
+                .keys()
+                .any(|id| !class.choices.iter().any(|choice| choice.id == *id))
+            {
+                return Err("unknown pack class choice".to_owned());
+            }
+        } else if !self.class_choices.pack_choices.is_empty() {
+            return Err("pack class choices require a resolved pack class".to_owned());
         }
         let expected_tools = if self.character_class == "Bard" {
             3
@@ -614,12 +692,17 @@ impl Character {
         {
             return Err("invalid level-1 Warlock invocation".to_owned());
         }
-        let mut expected_cantrips = match self.character_class.as_str() {
-            "Bard" | "Druid" | "Warlock" => 2,
-            "Cleric" | "Wizard" => 3,
-            "Sorcerer" => 4,
-            _ => 0,
-        };
+        let mut expected_cantrips = pack_rule
+            .and_then(|class| class.spellcasting.as_ref())
+            .map_or_else(
+                || match self.character_class.as_str() {
+                    "Bard" | "Druid" | "Warlock" => 2,
+                    "Cleric" | "Wizard" => 3,
+                    "Sorcerer" => 4,
+                    _ => 0,
+                },
+                |spellcasting| spellcasting.cantrip_count,
+            );
         if self.class_choices.divine_order.as_deref() == Some("Thaumaturge")
             || self.class_choices.primal_order.as_deref() == Some("Magician")
         {
@@ -631,20 +714,30 @@ impl Character {
                 self.character_class
             ));
         }
+        let spell_list = pack_rule
+            .and_then(|class| class.spellcasting.as_ref())
+            .map_or_else(
+                || self.character_class.as_str(),
+                |spellcasting| spellcasting.spell_list.as_str(),
+            );
         if self.class_choices.cantrips.iter().any(|spell| {
-            !self.spell_is_on_list(spell, self.character_class.as_str(), 0)
-                && !self.unresolved_pack_spell(spell)
+            !self.spell_is_on_list(spell, spell_list, 0) && !self.unresolved_pack_spell(spell)
         }) {
             return Err(format!(
                 "invalid number or selection of {} cantrips",
                 self.character_class
             ));
         }
-        let expected_prepared = match self.character_class.as_str() {
-            "Bard" | "Cleric" | "Druid" | "Wizard" => 4,
-            "Paladin" | "Ranger" | "Sorcerer" | "Warlock" => 2,
-            _ => 0,
-        };
+        let expected_prepared = pack_rule
+            .and_then(|class| class.spellcasting.as_ref())
+            .map_or_else(
+                || match self.character_class.as_str() {
+                    "Bard" | "Cleric" | "Druid" | "Wizard" => 4,
+                    "Paladin" | "Ranger" | "Sorcerer" | "Warlock" => 2,
+                    _ => 0,
+                },
+                |spellcasting| spellcasting.prepared_spell_count,
+            );
         if self.class_choices.prepared_spells.len() != expected_prepared {
             return Err(format!(
                 "invalid number or selection of {} prepared spells",
@@ -652,9 +745,9 @@ impl Character {
             ));
         }
         if self.class_choices.prepared_spells.iter().any(|spell| {
-            (!self.spell_is_on_list(spell, self.character_class.as_str(), 1)
-                && !self.unresolved_pack_spell(spell))
-                || srd::class_always_prepared(&self.character_class).contains(&spell.as_str())
+            (!self.spell_is_on_list(spell, spell_list, 1) && !self.unresolved_pack_spell(spell))
+                || (pack_rule.is_none()
+                    && srd::class_always_prepared(&self.character_class).contains(&spell.as_str()))
         }) {
             return Err(format!(
                 "invalid number or selection of {} prepared spells",
@@ -693,9 +786,15 @@ impl Character {
     }
 
     fn validate_equipment_choices(&self) -> Result<(), String> {
-        if self.class_equipment_option != "Gold"
-            && srd::class_equipment(&self.character_class, &self.class_equipment_option).is_none()
-        {
+        let valid_class_equipment = self.resolved_pack_class.as_ref().map_or_else(
+            || {
+                self.class_equipment_option == "Gold"
+                    || srd::class_equipment(&self.character_class, &self.class_equipment_option)
+                        .is_some()
+            },
+            |_| ["A", "Gold"].contains(&self.class_equipment_option.as_str()),
+        );
+        if !valid_class_equipment {
             return Err(format!(
                 "invalid {} starting-equipment option: {}",
                 self.character_class, self.class_equipment_option
@@ -736,7 +835,7 @@ fn validate_required_only(
 #[cfg(test)]
 mod tests {
     use super::Character;
-    use crate::character_wizard_domain::{PackBackground, PackSpell};
+    use crate::character_wizard_domain::{PackBackground, PackClass, PackSpell};
 
     #[test]
     fn rejects_out_of_scope_levels_at_the_validation_boundary() {
@@ -811,5 +910,37 @@ mod tests {
             .resolve_pack_spells(std::slice::from_ref(&spell))
             .expect("resolve exact spell catalog");
         assert_eq!(character.spell_name("moon-spark"), "Moon Spark");
+    }
+
+    #[test]
+    fn pack_class_requires_exact_catalog_resolution() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(include_str!("../../fixtures/complete-character.json"))
+                .expect("fixture JSON");
+        value["character_class"] = serde_json::json!("moon-warden");
+        value["data_pack"] = serde_json::json!({
+            "id": "test-pack",
+            "format_version": 1,
+            "version": 1
+        });
+        value["class_skills"] = serde_json::json!(["Athletics", "Perception"]);
+        value["class_choices"] = serde_json::json!({
+            "weapon_masteries": ["Longsword", "Shortbow"]
+        });
+        value["class_equipment_option"] = serde_json::json!("A");
+        let mut character = Character::from_json(&value.to_string()).expect("structural record");
+        assert_eq!(
+            character.resolve_pack_class(&[]),
+            Err("unknown class in data pack: moon-warden".to_owned())
+        );
+        let rule: PackClass = serde_json::from_str(
+            r#"{"id":"moon-warden","name":"Moon Warden","hit_die":10,"saving_throws":["strength","wisdom"],"skill_count":2,"skills":["Athletics","Perception","Survival"],"armor_training":["Light","Medium","Shields"],"weapon_training":["Simple","Martial"],"equipment":[{"name":"Longsword"}],"equipment_gold":10,"starting_gold":150,"features":["Moonlit Vigil"],"weapon_mastery_count":2}"#,
+        )
+        .expect("class record");
+        character
+            .resolve_pack_class(std::slice::from_ref(&rule))
+            .expect("resolve exact class catalog");
+        assert_eq!(character.class_name(), "Moon Warden");
+        assert_eq!(character.hit_points(), 11);
     }
 }

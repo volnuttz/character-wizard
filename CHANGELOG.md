@@ -24,6 +24,18 @@ All notable changes to character-wizard are documented here. The project follows
   choices across interactive, edit, random, and quick creation. Character JSON
   retains stable spell IDs while reviews and PDF spell tables show pack names
   and casting metadata.
+- Campaign data packs can define basic non-spellcasting level-1 classes with
+  stable IDs, Hit Dice, saving throws, skill choices, armor and weapon training,
+  fixed starting equipment or gold, feature descriptions, and optional Weapon
+  Mastery choices.
+- Custom classes participate in interactive, edit, constrained random, and
+  quick creation; their HP, saves, proficiencies, inventory, gold, summaries,
+  and existing PDF fields use the resolved pack mechanics and display name.
+- Custom classes can additionally define reusable descriptive choices with
+  stable option IDs, fixed level-1 resources, and optional spellcasting that
+  borrows a supported SRD list and includes compatible pack spells. Choices,
+  resources, spellcasting statistics, slots, and spell tables are validated and
+  rendered through existing character and PDF projections.
 
 ## [0.5.1] - 2026-08-06
 

@@ -1,6 +1,6 @@
 //! Canonical character record and its current implementation.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::character_wizard_srd_data as srd;
 use serde::{Deserialize, Serialize};
@@ -220,6 +220,8 @@ pub struct ClassChoices {
     pub fighting_style: Option<String>,
     pub eldritch_invocation: Option<String>,
     pub additional_language: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pack_choices: BTreeMap<String, BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -346,6 +348,8 @@ pub struct Character {
     #[serde(default)]
     pub data_pack: Option<DataPackReference>,
     pub character_class: ClassId,
+    #[serde(skip)]
+    pub resolved_pack_class: Option<PackClass>,
     pub background: BackgroundId,
     #[serde(skip)]
     pub resolved_pack_background: Option<PackBackground>,
@@ -449,6 +453,82 @@ pub struct PackBackground {
     pub equipment_gold: u16,
     #[serde(default = "default_background_gold_alternative")]
     pub gold_alternative: u16,
+}
+
+/// Runtime-resolved mechanics for a declarative, non-spellcasting pack class.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackClass {
+    pub id: String,
+    pub name: String,
+    pub hit_die: u8,
+    pub saving_throws: Vec<String>,
+    pub skill_count: usize,
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub armor_training: Vec<String>,
+    #[serde(default)]
+    pub weapon_training: Vec<String>,
+    pub equipment: Vec<PackEquipmentGrant>,
+    #[serde(default)]
+    pub equipment_gold: u16,
+    pub starting_gold: u16,
+    pub features: Vec<String>,
+    #[serde(default)]
+    pub weapon_mastery_count: usize,
+    #[serde(default)]
+    pub choices: Vec<PackClassChoice>,
+    #[serde(default)]
+    pub resources: Vec<PackClassResource>,
+    #[serde(default)]
+    pub spellcasting: Option<PackClassSpellcasting>,
+}
+
+/// One reusable, descriptive selection made for a pack class.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackClassChoice {
+    pub id: String,
+    pub label: String,
+    pub count: usize,
+    pub options: Vec<PackClassChoiceOption>,
+}
+
+/// One stable option belonging to a declarative pack-class choice.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackClassChoiceOption {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// One fixed level-1 resource displayed for a pack class.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackClassResource {
+    pub name: String,
+    pub maximum: i16,
+    pub unit: String,
+    pub recovery: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+/// Optional level-1 spellcasting that borrows a validated SRD spell list.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackClassSpellcasting {
+    pub ability: String,
+    pub spell_list: String,
+    #[serde(default)]
+    pub cantrip_count: usize,
+    #[serde(default)]
+    pub prepared_spell_count: usize,
+    #[serde(default)]
+    pub spell_slots: u8,
+    pub slot_recovery: String,
 }
 
 /// A named starting-equipment grant supplied by a pack background.
