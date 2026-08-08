@@ -5,12 +5,16 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-08
+
 ### Changed
 
 - Removed the redundant `create --from-json` path; use `render <character>` to
   generate a PDF from an existing character record.
 - Renamed the PDF destination option from `--output` to `--pdf` for `create`,
   `random`, `edit`, and `render`. The JSON-focused `import --output` is unchanged.
+- Updated the README to link directly to the supported official character-sheet
+  PDF.
 
 ## [0.6.1] - 2026-08-08
 
@@ -322,7 +326,8 @@ This release contains no user-facing character-creation or PDF-output changes.
   executables with SHA-256 files.
 - Cross-platform quality, native-binary, and tag-triggered GitHub Release jobs.
 
-[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/volnuttz/character-wizard/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/volnuttz/character-wizard/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/volnuttz/character-wizard/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/volnuttz/character-wizard/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/volnuttz/character-wizard/compare/v0.5.0...v0.5.1
