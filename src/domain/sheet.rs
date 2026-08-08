@@ -2,7 +2,7 @@
 //!
 //! Renderers use this boundary instead of querying SRD catalog data themselves.
 
-use crate::Character;
+use crate::{Character, domain::Ability};
 
 /// A calculated saving throw suitable for presentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,8 +32,11 @@ impl<'a> CharacterSheet<'a> {
 
     /// Calculate one ability saving throw.
     #[must_use]
-    pub fn saving_throw(self, ability: &str) -> SavingThrow {
-        let proficient = self.character.class_saving_throws().contains(&ability);
+    pub fn saving_throw(self, ability: Ability) -> SavingThrow {
+        let proficient = self
+            .character
+            .class_saving_throws()
+            .contains(&ability.as_str());
         let modifier = self.character.abilities.modifier(ability)
             + if proficient {
                 i16::from(self.character.proficiency_bonus())

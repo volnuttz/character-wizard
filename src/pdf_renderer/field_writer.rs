@@ -48,6 +48,7 @@ pub fn render_fields(
 ///
 /// Returns an error when the PDF cannot be read, the field is absent, or it has
 /// no stored value.
+#[cfg(test)]
 pub fn read_field_value(path: impl AsRef<Path>, field_name: &str) -> Result<Object> {
     let document = Document::load(path).map_err(|error| error.to_string())?;
     let (_, target) = field_index(&document)?
@@ -61,36 +62,6 @@ pub fn read_field_value(path: impl AsRef<Path>, field_name: &str) -> Result<Obje
         .get(b"V")
         .cloned()
         .map_err(|error| error.to_string())
-}
-
-/// Read a set of stored field values with one template traversal.
-///
-/// # Errors
-///
-/// Returns an error when the PDF cannot be read or any requested field is absent.
-pub fn read_field_values(
-    path: impl AsRef<Path>,
-    field_names: impl IntoIterator<Item = String>,
-) -> Result<BTreeMap<String, Object>> {
-    let document = Document::load(path).map_err(|error| error.to_string())?;
-    let index = field_index(&document)?;
-    field_names
-        .into_iter()
-        .map(|name| {
-            let (_, target) = index
-                .get(&name)
-                .copied()
-                .ok_or_else(|| format!("field not found: {name}"))?;
-            let value = document
-                .get_object(target)
-                .and_then(Object::as_dict)
-                .map_err(|error| error.to_string())?
-                .get(b"V")
-                .cloned()
-                .map_err(|error| format!("field {name}: {error}"))?;
-            Ok((name, value))
-        })
-        .collect()
 }
 
 fn set_text(

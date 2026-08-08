@@ -11,8 +11,8 @@ mod pdf_renderer_renderer;
 #[path = "template_inventory.rs"]
 mod pdf_renderer_template_inventory;
 
-pub use pdf_renderer_field_writer::{read_field_value, read_field_values, render_fields};
+#[cfg(test)]
+pub(crate) use pdf_renderer_field_writer::read_field_value;
+pub(crate) use pdf_renderer_field_writer::render_fields;
 pub use pdf_renderer_renderer::*;
-pub use pdf_renderer_template_inventory::{
-    TemplateInventory, acroform_inventory, template_inventory,
-};
+pub(crate) use pdf_renderer_template_inventory::acroform_inventory;

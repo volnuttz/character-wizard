@@ -6,7 +6,10 @@ use crate::character_wizard_srd_data as srd;
 
 use crate::domain::CharacterSheet;
 
-use super::record::{Character, PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell};
+use super::{
+    content::{PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell},
+    record::Character,
+};
 
 impl Character {
     /// Resolve the exact custom class referenced by this character.

@@ -1,11 +1,54 @@
 //! Canonical character record and its current implementation.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Deref;
 
 use crate::character_wizard_srd_data as srd;
 use serde::{Deserialize, Serialize};
 
+use super::content::{PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell};
 use crate::domain::{BackgroundId, ClassId, Size, SpeciesId};
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum Ability {
+    Strength,
+    Dexterity,
+    Constitution,
+    Intelligence,
+    Wisdom,
+    Charisma,
+}
+
+impl Ability {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Strength => "strength",
+            Self::Dexterity => "dexterity",
+            Self::Constitution => "constitution",
+            Self::Intelligence => "intelligence",
+            Self::Wisdom => "wisdom",
+            Self::Charisma => "charisma",
+        }
+    }
+}
+
+impl TryFrom<&str> for Ability {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "strength" => Ok(Self::Strength),
+            "dexterity" => Ok(Self::Dexterity),
+            "constitution" => Ok(Self::Constitution),
+            "intelligence" => Ok(Self::Intelligence),
+            "wisdom" => Ok(Self::Wisdom),
+            "charisma" => Ok(Self::Charisma),
+            _ => Err(format!("unknown ability: {value}")),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -20,15 +63,14 @@ pub struct AbilityScores {
 
 impl AbilityScores {
     #[must_use]
-    pub fn modifier(&self, ability: &str) -> i16 {
+    pub fn modifier(&self, ability: Ability) -> i16 {
         let score = match ability {
-            "strength" => self.strength,
-            "dexterity" => self.dexterity,
-            "constitution" => self.constitution,
-            "intelligence" => self.intelligence,
-            "wisdom" => self.wisdom,
-            "charisma" => self.charisma,
-            _ => return 0,
+            Ability::Strength => self.strength,
+            Ability::Dexterity => self.dexterity,
+            Ability::Constitution => self.constitution,
+            Ability::Intelligence => self.intelligence,
+            Ability::Wisdom => self.wisdom,
+            Ability::Charisma => self.charisma,
         };
         (i16::from(score) - 10).div_euclid(2)
     }
@@ -63,15 +105,14 @@ impl AbilityScores {
     }
 
     #[must_use]
-    pub fn score(&self, ability: &str) -> u8 {
+    pub const fn score(&self, ability: Ability) -> u8 {
         match ability {
-            "strength" => self.strength,
-            "dexterity" => self.dexterity,
-            "constitution" => self.constitution,
-            "intelligence" => self.intelligence,
-            "wisdom" => self.wisdom,
-            "charisma" => self.charisma,
-            _ => 0,
+            Ability::Strength => self.strength,
+            Ability::Dexterity => self.dexterity,
+            Ability::Constitution => self.constitution,
+            Ability::Intelligence => self.intelligence,
+            Ability::Wisdom => self.wisdom,
+            Ability::Charisma => self.charisma,
         }
     }
 }
@@ -155,6 +196,7 @@ impl BackgroundAbilityAdjustment {
     /// # Errors
     ///
     /// Returns an error for an unknown background or invalid increases.
+    #[cfg(test)]
     pub fn adjusted_scores(&self) -> Result<AbilityScores, String> {
         let rule = srd::background_rule(&self.background)
             .ok_or_else(|| format!("unknown SRD background: {}", self.background))?;
@@ -200,7 +242,7 @@ fn increased(
     ability: &str,
 ) -> Result<u8, String> {
     scores
-        .score(ability)
+        .score(Ability::try_from(ability)?)
         .checked_add(increases.get(ability).copied().unwrap_or(0))
         .filter(|score| *score <= 20)
         .ok_or_else(|| format!("background increase would raise {ability} above 20"))
@@ -343,23 +385,24 @@ impl ClassResource {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_field_names)] // Canonical JSON compatibility requires `character_class`.
 pub struct Character {
     pub name: String,
     #[serde(default)]
     pub data_pack: Option<DataPackReference>,
     pub character_class: ClassId,
     #[serde(skip)]
-    pub resolved_pack_class: Option<PackClass>,
+    pub(crate) resolved_pack_class: Option<PackClass>,
     pub background: BackgroundId,
     #[serde(skip)]
-    pub resolved_pack_background: Option<PackBackground>,
+    pub(crate) resolved_pack_background: Option<PackBackground>,
     #[serde(skip)]
-    pub resolved_pack_equipment: Vec<PackEquipment>,
+    pub(crate) resolved_pack_equipment: Vec<PackEquipment>,
     #[serde(skip)]
-    pub resolved_pack_spells: Option<Vec<PackSpell>>,
+    pub(crate) resolved_pack_spells: Option<Vec<PackSpell>>,
     pub species: SpeciesId,
     #[serde(skip)]
-    pub resolved_pack_species: Option<PackSpecies>,
+    pub(crate) resolved_pack_species: Option<PackSpecies>,
     pub size: Size,
     #[serde(default)]
     pub dragonborn_ancestry: Option<String>,
@@ -413,6 +456,43 @@ pub struct Character {
     pub xp: u32,
 }
 
+/// Canonical character data whose complete rule dependencies have been resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedCharacter(pub(crate) Character);
+
+impl ResolvedCharacter {
+    #[must_use]
+    pub fn into_record(self) -> Character {
+        self.0
+    }
+}
+
+impl Deref for ResolvedCharacter {
+    type Target = Character;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Character> for ResolvedCharacter {
+    fn as_ref(&self) -> &Character {
+        &self.0
+    }
+}
+
+impl PartialEq<Character> for ResolvedCharacter {
+    fn eq(&self, other: &Character) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<ResolvedCharacter> for Character {
+    fn eq(&self, other: &ResolvedCharacter) -> bool {
+        *self == other.0
+    }
+}
+
 /// Stable provenance for a character that depends on an external data pack.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -420,200 +500,6 @@ pub struct DataPackReference {
     pub id: String,
     pub format_version: u8,
     pub version: u32,
-}
-
-/// Runtime-resolved basic mechanics for an external pack species.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackSpecies {
-    pub id: String,
-    pub name: String,
-    pub sizes: Vec<Size>,
-    pub speed: u8,
-    #[serde(default)]
-    pub darkvision_range: Option<u8>,
-    #[serde(default)]
-    pub traits: Vec<String>,
-}
-
-/// Runtime-resolved mechanics for an external pack background.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackBackground {
-    pub id: String,
-    pub name: String,
-    pub abilities: Vec<String>,
-    pub skills: Vec<String>,
-    pub feat: String,
-    pub tool: String,
-    #[serde(default)]
-    pub magic_initiate_list: Option<String>,
-    pub equipment: Vec<PackEquipmentGrant>,
-    #[serde(default)]
-    pub equipment_gold: u16,
-    #[serde(default = "default_background_gold_alternative")]
-    pub gold_alternative: u16,
-}
-
-/// Runtime-resolved mechanics for a declarative, non-spellcasting pack class.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackClass {
-    pub id: String,
-    pub name: String,
-    pub hit_die: u8,
-    pub saving_throws: Vec<String>,
-    pub skill_count: usize,
-    pub skills: Vec<String>,
-    #[serde(default)]
-    pub armor_training: Vec<String>,
-    #[serde(default)]
-    pub weapon_training: Vec<String>,
-    pub equipment: Vec<PackEquipmentGrant>,
-    #[serde(default)]
-    pub equipment_gold: u16,
-    pub starting_gold: u16,
-    pub features: Vec<String>,
-    #[serde(default)]
-    pub weapon_mastery_count: usize,
-    #[serde(default)]
-    pub choices: Vec<PackClassChoice>,
-    #[serde(default)]
-    pub resources: Vec<PackClassResource>,
-    #[serde(default)]
-    pub spellcasting: Option<PackClassSpellcasting>,
-}
-
-/// One reusable, descriptive selection made for a pack class.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackClassChoice {
-    pub id: String,
-    pub label: String,
-    pub count: usize,
-    pub options: Vec<PackClassChoiceOption>,
-}
-
-/// One stable option belonging to a declarative pack-class choice.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackClassChoiceOption {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-/// One fixed level-1 resource displayed for a pack class.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackClassResource {
-    pub name: String,
-    pub maximum: i16,
-    pub unit: String,
-    pub recovery: String,
-    #[serde(default)]
-    pub detail: Option<String>,
-}
-
-/// Optional level-1 spellcasting that borrows a validated SRD spell list.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackClassSpellcasting {
-    pub ability: String,
-    pub spell_list: String,
-    #[serde(default)]
-    pub cantrip_count: usize,
-    #[serde(default)]
-    pub prepared_spell_count: usize,
-    #[serde(default)]
-    pub spell_slots: u8,
-    pub slot_recovery: String,
-}
-
-/// A named starting-equipment grant supplied by a pack background.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackEquipmentGrant {
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub equipment_id: Option<String>,
-    #[serde(default = "default_equipment_quantity")]
-    pub quantity: u16,
-}
-
-/// A typed custom item that can be granted by a background in the same pack.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackEquipment {
-    pub id: String,
-    pub name: String,
-    pub kind: PackEquipmentKind,
-}
-
-/// Mechanics supported for background-owned custom equipment.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum PackEquipmentKind {
-    Gear,
-    Ammunition,
-    Shield {
-        armor_class_bonus: i16,
-    },
-    Armor {
-        category: String,
-        base_ac: i16,
-        #[serde(default)]
-        dexterity_cap: Option<i16>,
-        #[serde(default)]
-        strength_requirement: Option<u8>,
-    },
-    Weapon {
-        category: String,
-        kind: String,
-        #[serde(default)]
-        properties: Vec<String>,
-        mastery: String,
-        damage: String,
-        damage_type: String,
-        normal_range: u16,
-        #[serde(default)]
-        long_range: Option<u16>,
-        #[serde(default)]
-        versatile_damage: Option<String>,
-    },
-}
-
-/// A typed custom level-0 or level-1 spell supplied by a data pack.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct PackSpell {
-    pub id: String,
-    pub name: String,
-    pub level: u8,
-    pub school: String,
-    pub lists: Vec<String>,
-    pub casting_time: String,
-    pub range: String,
-    pub components: Vec<String>,
-    #[serde(default)]
-    pub material: Option<String>,
-    #[serde(default)]
-    pub concentration: bool,
-    #[serde(default)]
-    pub ritual: bool,
-    pub notes: String,
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
-
-const fn default_equipment_quantity() -> u16 {
-    1
-}
-
-const fn default_background_gold_alternative() -> u16 {
-    50
 }
 
 fn default_equipment_option() -> String {
@@ -628,11 +514,20 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{
-        AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores,
+        Ability, AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores,
         BackgroundAbilityAdjustment, Character,
     };
 
     const COMPLETE_ROGUE: &str = include_str!("../../fixtures/complete-character.json");
+
+    #[test]
+    fn ability_names_are_closed_instead_of_silently_defaulting() {
+        assert_eq!(Ability::try_from("wisdom"), Ok(Ability::Wisdom));
+        assert_eq!(
+            Ability::try_from("luck").expect_err("unknown ability"),
+            "unknown ability: luck"
+        );
+    }
 
     #[test]
     fn canonical_fixture_round_trips_and_derives_golden_scalars() {
@@ -657,14 +552,14 @@ mod tests {
         assert_eq!(attacks[0].notes, ["Quantity 4", "Mastery: Nick"]);
         assert_eq!(sheet.hit_die(), 8);
         assert_eq!(
-            sheet.saving_throw("dexterity"),
+            sheet.saving_throw(Ability::Dexterity),
             crate::domain::SavingThrow {
                 proficient: true,
                 modifier: 5
             }
         );
         assert_eq!(
-            sheet.saving_throw("wisdom"),
+            sheet.saving_throw(Ability::Wisdom),
             crate::domain::SavingThrow {
                 proficient: false,
                 modifier: 0

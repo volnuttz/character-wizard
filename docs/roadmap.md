@@ -330,6 +330,25 @@ its focused tests and the full crate quality gate pass.
 - [x] Expand scripted prompt-port tests to cover origin, ability, build, review,
   and back-navigation paths without terminal I/O.
 
+### Architecture hardening after character management and data packs
+
+- [x] Add a library composition boundary and reduce the executable entry point to
+  parsing-independent delegation.
+- [x] Separate serialized data-pack manifests from fully loaded, validated packs;
+  keep loaded content private behind accessors.
+- [x] Introduce one `RulesContext` for built-in SRD and optional pack content,
+  replacing repeated class/species/background/equipment/spell slice arguments.
+- [x] Distinguish canonical `Character` records from `ResolvedCharacter` values
+  that have exact pack provenance and mechanics attached.
+- [x] Extract collection path handling and crash-resistant JSON replacement into
+  a repository/storage boundary, including draft checkpoints.
+- [x] Move review projection out of the wizard state machine and route workflow
+  progress/review output through the prompt adapter.
+- [x] Replace silent string-based ability lookup fallbacks with the closed
+  `Ability` type.
+- [x] Add typed application error categories and emit failures on stderr.
+- [x] Narrow internal module visibility and remove unused legacy façades.
+
 Exit criteria:
 
 - Pull requests receive automated quality feedback.

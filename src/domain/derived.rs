@@ -4,9 +4,12 @@ use std::collections::BTreeSet;
 
 use crate::character_wizard_srd_data as srd;
 
-use super::record::{
-    Character, ClassResource, CoinPurse, EquipmentItem, PackClass, PackEquipment,
-    PackEquipmentKind, SpellSlotPool, SpellTableEntry, SpellcastingProfile, WeaponAttack,
+use super::{
+    content::{PackClass, PackEquipment, PackEquipmentKind, PackSpell},
+    record::{
+        Ability, Character, ClassResource, CoinPurse, EquipmentItem, SpellSlotPool,
+        SpellTableEntry, SpellcastingProfile, WeaponAttack,
+    },
 };
 
 #[derive(Clone, Copy)]
@@ -61,7 +64,7 @@ impl Character {
         )
     }
 
-    fn pack_spell(&self, reference: &str) -> Option<&super::record::PackSpell> {
+    fn pack_spell(&self, reference: &str) -> Option<&PackSpell> {
         self.resolved_pack_spells
             .as_deref()
             .unwrap_or(&[])
@@ -175,18 +178,6 @@ impl Character {
     }
 
     #[must_use]
-    pub fn background_abilities(&self) -> Vec<&str> {
-        self.resolved_pack_background.as_ref().map_or_else(
-            || {
-                srd::background_rule(&self.background)
-                    .map_or(&[][..], |rule| rule.abilities)
-                    .to_vec()
-            },
-            |rule| rule.abilities.iter().map(String::as_str).collect(),
-        )
-    }
-
-    #[must_use]
     pub fn background_skills(&self) -> Vec<&str> {
         self.resolved_pack_background.as_ref().map_or_else(
             || {
@@ -243,9 +234,12 @@ impl Character {
 
     #[must_use]
     pub fn skill_modifier(&self, skill: &str) -> i16 {
-        let mut value = self
-            .abilities
-            .modifier(srd::skill_ability(skill).unwrap_or(""));
+        let Some(ability) =
+            srd::skill_ability(skill).and_then(|ability| Ability::try_from(ability).ok())
+        else {
+            return 0;
+        };
+        let mut value = self.abilities.modifier(ability);
         if self.class_choices.expertise.contains(skill) {
             value += i16::from(self.proficiency_bonus()) * 2;
         } else if self.skills().contains(skill) {
@@ -254,12 +248,12 @@ impl Character {
         if self.class_choices.divine_order.as_deref() == Some("Thaumaturge")
             && ["Arcana", "Religion"].contains(&skill)
         {
-            value += self.abilities.modifier("wisdom").max(1);
+            value += self.abilities.modifier(Ability::Wisdom).max(1);
         }
         if self.class_choices.primal_order.as_deref() == Some("Magician")
             && ["Arcana", "Nature"].contains(&skill)
         {
-            value += self.abilities.modifier("wisdom").max(1);
+            value += self.abilities.modifier(Ability::Wisdom).max(1);
         }
         value
     }
@@ -267,13 +261,13 @@ impl Character {
     #[must_use]
     pub fn hit_points(&self) -> i16 {
         i16::from(self.class_hit_die())
-            + self.abilities.modifier("constitution")
+            + self.abilities.modifier(Ability::Constitution)
             + i16::from(self.species == "Dwarf")
     }
 
     #[must_use]
     pub fn initiative_modifier(&self) -> i16 {
-        self.abilities.modifier("dexterity")
+        self.abilities.modifier(Ability::Dexterity)
             + if self.background_feat() == Some("Alert")
                 || self.human_origin_feat.as_deref() == Some("Alert")
             {
@@ -307,7 +301,7 @@ impl Character {
 
     #[must_use]
     pub fn armor_class(&self) -> i16 {
-        let dexterity = self.abilities.modifier("dexterity");
+        let dexterity = self.abilities.modifier(Ability::Dexterity);
         let armor = self.equipped_armor_item();
         let mut value = if let Some(rule) = armor
             .as_ref()
@@ -319,9 +313,9 @@ impl Character {
                     None => dexterity,
                 }
         } else if self.character_class == "Barbarian" {
-            10 + dexterity + self.abilities.modifier("constitution")
+            10 + dexterity + self.abilities.modifier(Ability::Constitution)
         } else if self.character_class == "Monk" {
-            10 + dexterity + self.abilities.modifier("wisdom")
+            10 + dexterity + self.abilities.modifier(Ability::Wisdom)
         } else {
             10 + dexterity
         };
@@ -498,11 +492,6 @@ impl Character {
         }
     }
 
-    #[must_use]
-    pub fn equipped_armor(&self) -> Option<String> {
-        self.equipped_armor_item().map(|item| item.name)
-    }
-
     fn equipped_armor_item(&self) -> Option<EquipmentItem> {
         self.inventory()
             .into_iter()
@@ -558,16 +547,16 @@ impl Character {
             .filter_map(|item| {
                 let weapon = item.weapon.as_deref()?;
                 let rule = self.weapon_rule(weapon, item.equipment_id.as_deref())?;
-                let abilities: &[&str] = if rule.kind == "Ranged" {
-                    &["dexterity"]
+                let abilities: &[Ability] = if rule.kind == "Ranged" {
+                    &[Ability::Dexterity]
                 } else if rule.properties.contains(&"Finesse") || self.character_class == "Monk" {
-                    &["strength", "dexterity"]
+                    &[Ability::Strength, Ability::Dexterity]
                 } else {
-                    &["strength"]
+                    &[Ability::Strength]
                 };
                 let modifier = abilities
                     .iter()
-                    .map(|ability| self.abilities.modifier(ability))
+                    .map(|ability| self.abilities.modifier(*ability))
                     .max()
                     .unwrap_or(0);
                 let mut attack_bonus = modifier
@@ -696,7 +685,9 @@ impl Character {
         slots: Vec<SpellSlotPool>,
         free_casts: Vec<String>,
     ) -> SpellcastingProfile {
-        let modifier = self.abilities.modifier(ability);
+        let modifier = self
+            .abilities
+            .modifier(Ability::try_from(ability).expect("validated spellcasting ability"));
         SpellcastingProfile {
             source,
             ability: ability.to_owned(),
@@ -766,27 +757,6 @@ impl Character {
             profiles.push(self.spellcasting_profile(source, ability, Vec::new(), free_casts));
         }
         profiles
-    }
-
-    #[must_use]
-    pub fn spellcasting_ability(&self) -> Option<String> {
-        self.spellcasting_profiles()
-            .first()
-            .map(|profile| profile.ability.clone())
-    }
-
-    #[must_use]
-    pub fn spell_save_dc(&self) -> Option<i16> {
-        self.spellcasting_profiles()
-            .first()
-            .map(|profile| profile.save_dc)
-    }
-
-    #[must_use]
-    pub fn spell_attack_bonus(&self) -> Option<i16> {
-        self.spellcasting_profiles()
-            .first()
-            .map(|profile| profile.attack_bonus)
     }
 
     #[must_use]
@@ -1211,7 +1181,7 @@ impl Character {
             },
             "Bard" => ClassResource {
                 name: "Bardic Inspiration".to_owned(),
-                maximum: self.abilities.modifier("charisma").max(1),
+                maximum: self.abilities.modifier(Ability::Charisma).max(1),
                 unit: "d6 uses".to_owned(),
                 detail: None,
                 recovery: "regain all on Long Rest".to_owned(),

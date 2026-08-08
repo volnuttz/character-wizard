@@ -5,6 +5,17 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Refactored the native application around a thin executable, encapsulated loaded
+  data packs, a unified rules context, resolved-character boundary, and atomic
+  character collection persistence without changing canonical character JSON.
+- Routed wizard progress and review output through the terminal adapter and moved
+  review projection into its own module.
+- Invalid CLI operations now use typed application error categories and write
+  their `Error:` message to stderr.
+- Replaced silent unknown ability-name fallbacks with a closed Rust ability type.
+
 ### Added
 
 - Campaign data packs can define custom backgrounds with stable IDs, ability

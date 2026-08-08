@@ -18,43 +18,6 @@ pub struct TemplateInventory {
     pub sha256: String,
 }
 
-/// Enumerate every `AcroForm` field exposed by the page widgets.
-///
-/// # Errors
-///
-/// Returns an error when the PDF cannot be read or a page/widget is malformed.
-pub fn template_inventory(template: impl AsRef<Path>) -> Result<TemplateInventory> {
-    let document = Document::load(template).map_err(|error| error.to_string())?;
-    let entries = field_entries(&document)?;
-    let mut hasher = Sha256::new();
-    let mut text_field_count = 0;
-    let mut button_field_count = 0;
-    let mut untyped_field_count = 0;
-    for (name, kind) in &entries {
-        hasher.update(name.as_bytes());
-        hasher.update(b"\t");
-        hasher.update(kind.as_bytes());
-        hasher.update(b"\n");
-        match kind.as_str() {
-            "/Tx" => text_field_count += 1,
-            "/Btn" => button_field_count += 1,
-            _ => untyped_field_count += 1,
-        }
-    }
-    let mut sha256 = String::new();
-    for byte in hasher.finalize() {
-        write!(&mut sha256, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    Ok(TemplateInventory {
-        page_count: document.get_pages().len(),
-        field_count: entries.len(),
-        text_field_count,
-        button_field_count,
-        untyped_field_count,
-        sha256,
-    })
-}
-
 /// Enumerate the root `AcroForm` field tree, including non-widget hierarchy entries.
 ///
 /// # Errors
@@ -170,25 +133,6 @@ fn collect_field_paths(
         }
     }
     Ok(())
-}
-
-fn field_entries(document: &Document) -> Result<Vec<(String, String)>> {
-    let mut entries = field_entries_with_ids(document)?
-        .into_iter()
-        .map(|(_, target, name, kind)| {
-            let target_name = document
-                .get_object(target)
-                .and_then(Object::as_dict)
-                .ok()
-                .and_then(|field| field.get(b"T").ok())
-                .and_then(|value| value.as_str().ok())
-                .map_or(name, |value| String::from_utf8_lossy(value).into_owned());
-            (target_name, kind)
-        })
-        .collect::<Vec<_>>();
-    entries.sort_unstable();
-    entries.dedup();
-    Ok(entries)
 }
 
 fn inventory_from_entries(

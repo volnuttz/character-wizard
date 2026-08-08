@@ -10,6 +10,9 @@ use crate::creation::{Result, WizardError, creation_workflow::choice_description
 /// separate lets a scripted or graphical adapter be introduced without changing
 /// the workflow's choice semantics.
 pub trait PromptPort {
+    /// Present workflow output without coupling rule collection to a terminal.
+    fn display(&self, _message: &str) {}
+
     /// Collect required text input.
     ///
     /// # Errors
@@ -57,6 +60,10 @@ pub trait PromptPort {
 pub struct TerminalPromptPort;
 
 impl PromptPort for TerminalPromptPort {
+    fn display(&self, message: &str) {
+        println!("{message}");
+    }
+
     fn prompt(&self, label: &str) -> Result<String> {
         prompt(label)
     }

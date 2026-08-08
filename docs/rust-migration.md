@@ -8,16 +8,23 @@ legacy implementation and migration-only generated artifacts were removed.
 
 | Module | Responsibility |
 | --- | --- |
+| `src/main.rs` | Minimal native executable entry point |
+| `src/lib.rs` | Internal application composition and visibility boundary |
+| `src/cli.rs` | Arguments, exit codes, terminal presentation, and command dispatch |
 | `src/srd_data/` | SRD-derived tables and stable identifiers |
-| `src/domain/` | Canonical Serde models, validation, derived values, and sheet projection |
-| `src/creation/` | Native wizard stages, prompts, drafts, review, and resume |
+| `src/domain/` | Canonical Serde records, external content records, validation, resolved values, and sheet projection |
+| `src/rules.rs` | Unified SRD and validated data-pack rule context |
+| `src/data_pack.rs` | External manifest loading, content validation, and encapsulated pack construction |
+| `src/storage.rs` | Character collection paths and crash-resistant canonical JSON writes |
+| `src/creation/` | Native wizard stages, prompt/output adapters, drafts, review projection, and resume |
 | `src/pdf_renderer/` | Template inventory, projection, AcroForm writing, appearances, and read-back |
 | `src/template.rs` | Explicit, local, cached, and downloaded template resolution |
-| `src/main.rs` | Arguments, exit codes, terminal presentation, and file coordination |
 
-The single binary crate keeps these boundaries as Rust modules. Presentation and
-prompts call into domain and renderer APIs; domain logic consumes SRD data. JSON
-remains the canonical record.
+The package still produces one native binary, while `lib.rs` now gives internal
+modules an explicit visibility boundary and leaves `main.rs` as a seven-line
+adapter. Commands resolve canonical records through `RulesContext` before derived
+values or rendering are used. JSON remains the canonical record; runtime-resolved
+pack mechanics are never serialized.
 
 ## Recorded compatibility evidence
 

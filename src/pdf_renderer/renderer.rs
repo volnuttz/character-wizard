@@ -1,6 +1,6 @@
 //! Supported-template validation and `AcroForm` rendering implementation.
 
-use crate::character_wizard_domain::Character;
+use crate::character_wizard_domain::{Ability, Character};
 use std::{collections::BTreeMap, path::Path};
 
 use crate::pdf_renderer::pdf_renderer_projection::project_spell_rows;
@@ -117,12 +117,42 @@ pub fn render_character(
         ("Text100".to_owned(), character.alignment.clone()),
     ]);
     for (ability, score_field, modifier_field, save_field, checkbox) in [
-        ("strength", "Text64", "Text21", "Text91", "Check Box37"),
-        ("dexterity", "Text66", "Text22", "Text87", "Check Box33"),
-        ("constitution", "Text67", "Text24", "Text86", "Check Box32"),
-        ("intelligence", "Text63", "Text20", "Text69", "Check Box4"),
-        ("wisdom", "Text65", "Text23", "Text75", "Check Box21"),
-        ("charisma", "Text68", "Text25", "Text81", "Check Box26"),
+        (
+            Ability::Strength,
+            "Text64",
+            "Text21",
+            "Text91",
+            "Check Box37",
+        ),
+        (
+            Ability::Dexterity,
+            "Text66",
+            "Text22",
+            "Text87",
+            "Check Box33",
+        ),
+        (
+            Ability::Constitution,
+            "Text67",
+            "Text24",
+            "Text86",
+            "Check Box32",
+        ),
+        (
+            Ability::Intelligence,
+            "Text63",
+            "Text20",
+            "Text69",
+            "Check Box4",
+        ),
+        (Ability::Wisdom, "Text65", "Text23", "Text75", "Check Box21"),
+        (
+            Ability::Charisma,
+            "Text68",
+            "Text25",
+            "Text81",
+            "Check Box26",
+        ),
     ] {
         values.insert(
             score_field.to_owned(),

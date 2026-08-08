@@ -3,15 +3,14 @@
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
-    fmt::Write as _,
     fs,
     path::Path,
 };
 
 use crate::character_wizard_domain::{
-    AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores, BackgroundAbilityAdjustment,
-    Character, ClassChoices, DataPackReference, MagicInitiateChoice, PackBackground, PackClass,
-    PackEquipment, PackSpecies, PackSpell,
+    Ability, AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores,
+    BackgroundAbilityAdjustment, Character, ClassChoices, DataPackReference, MagicInitiateChoice,
+    PackBackground, PackClass, PackEquipment, PackSpecies, PackSpell,
 };
 use rand::RngExt as _;
 use serde::{Deserialize, Serialize};
@@ -21,8 +20,14 @@ use crate::{
     creation::{
         Result, WizardError,
         creation_prompts::{PromptPort, TerminalPromptPort},
+        creation_review::display_character_review,
     },
+    rules::RulesContext,
+    storage,
 };
+
+#[cfg(test)]
+use crate::creation::creation_review::character_review_rows;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -165,8 +170,7 @@ impl CharacterDraft {
         }
         let mut source = serde_json::to_string_pretty(self).map_err(|error| error.to_string())?;
         source.push('\n');
-        Ok(fs::write(path, source)
-            .map_err(|error| format!("unable to write draft {}: {error}", path.display()))?)
+        storage::write_atomic(path, source.as_bytes()).map_err(WizardError::from)
     }
 
     /// Convert a complete checkpoint into the canonical validated record.
@@ -241,34 +245,25 @@ impl CharacterDraft {
 ///
 /// Returns an error for input cancellation, checkpoint I/O, or invalid choices.
 #[allow(clippy::too_many_lines)]
-pub fn run_interactive(draft_path: impl AsRef<Path>) -> Result<Character> {
-    run_interactive_with(draft_path, &TerminalPromptPort)
-}
-
 /// Run the staged terminal wizard with an optional external species catalog.
 ///
 /// # Errors
 ///
 /// Returns an error for input cancellation, checkpoint I/O, pack mismatch, or
 /// invalid choices.
-pub fn run_interactive_with_pack(
+pub fn run_interactive_with_rules(
     draft_path: impl AsRef<Path>,
-    data_pack: Option<DataPackReference>,
-    pack_classes: &[PackClass],
-    pack_species: &[PackSpecies],
-    pack_backgrounds: &[PackBackground],
-    pack_equipment: &[PackEquipment],
-    pack_spells: &[PackSpell],
+    rules: RulesContext<'_>,
 ) -> Result<Character> {
     run_interactive_with_catalog(
         draft_path.as_ref(),
         &TerminalPromptPort,
-        data_pack,
-        pack_classes,
-        pack_species,
-        pack_backgrounds,
-        pack_equipment,
-        pack_spells,
+        rules.reference().cloned(),
+        rules.classes(),
+        rules.species(),
+        rules.backgrounds(),
+        rules.equipment(),
+        rules.spells(),
     )
 }
 
@@ -278,6 +273,7 @@ pub fn run_interactive_with_pack(
 ///
 /// Returns an error for input cancellation, checkpoint I/O, or invalid choices.
 #[allow(clippy::too_many_lines)]
+#[cfg(test)]
 pub fn run_interactive_with(
     draft_path: impl AsRef<Path>,
     prompts: &dyn PromptPort,
@@ -307,7 +303,7 @@ fn run_interactive_with_catalog(
     draft.data_pack = data_pack;
     loop {
         if draft.origin.is_none() {
-            print_progress(1, "Origin");
+            print_progress(prompts, 1, "Origin");
             match collect_origin(
                 prompts,
                 pack_classes,
@@ -320,7 +316,7 @@ fn run_interactive_with_catalog(
                     draft.save(draft_path)?;
                 }
                 Err(WizardError::Back) => {
-                    println!("Origin is the first stage; there is nothing to go back to.");
+                    prompts.display("Origin is the first stage; there is nothing to go back to.");
                     continue;
                 }
                 Err(error) => return Err(error),
@@ -331,7 +327,7 @@ fn run_interactive_with_catalog(
                 .origin
                 .as_ref()
                 .ok_or_else(|| "origin checkpoint missing".to_owned())?;
-            print_progress(2, "Abilities");
+            print_progress(prompts, 2, "Abilities");
             match collect_abilities(origin, prompts, pack_classes, pack_backgrounds) {
                 Ok(abilities) => {
                     draft.abilities = Some(abilities);
@@ -350,7 +346,7 @@ fn run_interactive_with_catalog(
                 .origin
                 .as_ref()
                 .ok_or_else(|| "origin checkpoint missing".to_owned())?;
-            print_progress(3, "Build");
+            print_progress(prompts, 3, "Build");
             match collect_build(
                 origin,
                 prompts,
@@ -372,7 +368,7 @@ fn run_interactive_with_catalog(
             }
         }
         if draft.details.is_none() {
-            print_progress(4, "Details");
+            print_progress(prompts, 4, "Details");
             match collect_details(prompts) {
                 Ok(details) => {
                     draft.details = Some(details);
@@ -392,8 +388,8 @@ fn run_interactive_with_catalog(
         character.resolve_pack_equipment(pack_equipment)?;
         character.resolve_pack_spells(pack_spells)?;
         character.resolve_pack_species(pack_species)?;
-        print_progress(5, "Review");
-        print_character_review(&character);
+        print_progress(prompts, 5, "Review");
+        display_character_review(prompts, &character);
         let action = match prompts.choose(
             "Review action",
             &[
@@ -440,31 +436,23 @@ fn run_interactive_with_catalog(
 /// # Errors
 ///
 /// Returns an error for invalid replacement choices or terminal input failures.
-pub fn run_edit_interactive(character: &Character) -> Result<Option<Character>> {
-    run_edit_interactive_with(character, &TerminalPromptPort)
-}
-
 /// Edit a completed character with an optional external species catalog.
 ///
 /// # Errors
 ///
 /// Returns an error for invalid replacement choices or terminal-input failures.
-pub fn run_edit_interactive_with_pack(
+pub fn run_edit_interactive_with_rules(
     character: &Character,
-    pack_classes: &[PackClass],
-    pack_species: &[PackSpecies],
-    pack_backgrounds: &[PackBackground],
-    pack_equipment: &[PackEquipment],
-    pack_spells: &[PackSpell],
+    rules: RulesContext<'_>,
 ) -> Result<Option<Character>> {
     run_edit_interactive_with_catalog(
         character,
         &TerminalPromptPort,
-        pack_classes,
-        pack_species,
-        pack_backgrounds,
-        pack_equipment,
-        pack_spells,
+        rules.classes(),
+        rules.species(),
+        rules.backgrounds(),
+        rules.equipment(),
+        rules.spells(),
     )
 }
 
@@ -476,6 +464,7 @@ pub fn run_edit_interactive_with_pack(
 ///
 /// Returns an error for invalid replacement choices or prompt-adapter failures.
 #[allow(clippy::too_many_lines)]
+#[cfg(test)]
 pub fn run_edit_interactive_with(
     character: &Character,
     prompts: &dyn PromptPort,
@@ -496,7 +485,7 @@ fn run_edit_interactive_with_catalog(
     let mut draft = CharacterDraft::from_character(character);
     loop {
         if draft.origin.is_none() {
-            print_progress(1, "Identity");
+            print_progress(prompts, 1, "Identity");
             match collect_origin(
                 prompts,
                 pack_classes,
@@ -514,7 +503,7 @@ fn run_edit_interactive_with_catalog(
                 .origin
                 .as_ref()
                 .ok_or_else(|| "origin choices missing".to_owned())?;
-            print_progress(2, "Abilities");
+            print_progress(prompts, 2, "Abilities");
             match collect_abilities(origin, prompts, pack_classes, pack_backgrounds) {
                 Ok(abilities) => draft.abilities = Some(abilities),
                 Err(WizardError::Back) => continue,
@@ -526,7 +515,7 @@ fn run_edit_interactive_with_catalog(
                 .origin
                 .as_ref()
                 .ok_or_else(|| "origin choices missing".to_owned())?;
-            print_progress(3, "Build");
+            print_progress(prompts, 3, "Build");
             match collect_build(
                 origin,
                 prompts,
@@ -541,7 +530,7 @@ fn run_edit_interactive_with_catalog(
             }
         }
         if draft.details.is_none() {
-            print_progress(4, "Details");
+            print_progress(prompts, 4, "Details");
             match collect_details(prompts) {
                 Ok(details) => draft.details = Some(details),
                 Err(WizardError::Back) => continue,
@@ -554,8 +543,8 @@ fn run_edit_interactive_with_catalog(
         edited.resolve_pack_equipment(pack_equipment)?;
         edited.resolve_pack_spells(pack_spells)?;
         edited.resolve_pack_species(pack_species)?;
-        print_progress(5, "Review");
-        print_character_review(&edited);
+        print_progress(prompts, 5, "Review");
+        display_character_review(prompts, &edited);
         let action = match prompts.choose(
             "Edit action",
             &[
@@ -597,41 +586,29 @@ fn run_edit_interactive_with_catalog(
 ///
 /// Returns an error when a requested class or species is unavailable, or a
 /// generated set of choices fails validation.
-pub fn generate_random_character(
-    character_class: Option<&str>,
-    species: Option<&str>,
-) -> Result<Character> {
-    generate_random_character_with_seed(character_class, species, rand::rng().random())
-}
-
 /// Generate a complete random character with an optional external species catalog.
 ///
 /// # Errors
 ///
 /// Returns an error for an unavailable constraint or invalid generated choices.
 #[allow(clippy::too_many_arguments)]
-pub fn generate_random_character_with_pack(
+pub fn generate_random_character_with_rules(
     character_class: Option<&str>,
     background: Option<&str>,
     species: Option<&str>,
-    data_pack: Option<DataPackReference>,
-    pack_classes: &[PackClass],
-    pack_species: &[PackSpecies],
-    pack_backgrounds: &[PackBackground],
-    pack_equipment: &[PackEquipment],
-    pack_spells: &[PackSpell],
+    rules: RulesContext<'_>,
 ) -> Result<Character> {
     generate_random_character_with_catalog(
         character_class,
         background,
         species,
         rand::rng().random(),
-        data_pack,
-        pack_classes,
-        pack_species,
-        pack_backgrounds,
-        pack_equipment,
-        pack_spells,
+        rules.reference().cloned(),
+        rules.classes(),
+        rules.species(),
+        rules.backgrounds(),
+        rules.equipment(),
+        rules.spells(),
     )
 }
 
@@ -640,35 +617,25 @@ pub fn generate_random_character_with_pack(
 /// # Errors
 ///
 /// Returns an error for random-generation, edit, or terminal-input failures.
-pub fn run_quick_interactive() -> Result<Character> {
-    run_quick_interactive_with_seed(&TerminalPromptPort, rand::rng().random())
-}
-
 /// Run quick creation with an optional external species catalog.
 ///
 /// # Errors
 ///
 /// Returns an error for random-generation, edit, or terminal-input failures.
-pub fn run_quick_interactive_with_pack(
-    data_pack: Option<&DataPackReference>,
-    pack_classes: &[PackClass],
-    pack_species: &[PackSpecies],
-    pack_backgrounds: &[PackBackground],
-    pack_equipment: &[PackEquipment],
-    pack_spells: &[PackSpell],
-) -> Result<Character> {
+pub fn run_quick_interactive_with_rules(rules: RulesContext<'_>) -> Result<Character> {
     run_quick_interactive_with_catalog(
         &TerminalPromptPort,
         rand::rng().random(),
-        data_pack,
-        pack_classes,
-        pack_species,
-        pack_backgrounds,
-        pack_equipment,
-        pack_spells,
+        rules.reference(),
+        rules.classes(),
+        rules.species(),
+        rules.backgrounds(),
+        rules.equipment(),
+        rules.spells(),
     )
 }
 
+#[cfg(test)]
 fn run_quick_interactive_with_seed(prompts: &dyn PromptPort, seed: u64) -> Result<Character> {
     run_quick_interactive_with_catalog(prompts, seed, None, &[], &[], &[], &[], &[])
 }
@@ -697,7 +664,7 @@ fn run_quick_interactive_with_catalog(
             pack_equipment,
             pack_spells,
         )?;
-        print_character_review(&character);
+        display_character_review(prompts, &character);
         let action = prompts.choose("Quick action", &["Accept", "Reroll", "Edit"])?;
         match action.as_str() {
             "Accept" => return Ok(character),
@@ -720,6 +687,7 @@ fn run_quick_interactive_with_catalog(
     }
 }
 
+#[cfg(test)]
 fn generate_random_character_with_seed(
     character_class: Option<&str>,
     species: Option<&str>,
@@ -908,8 +876,8 @@ impl PromptPort for RandomPromptPort {
     }
 }
 
-fn print_progress(stage: usize, label: &str) {
-    println!("\n== Step {stage}/5: {label} ==");
+fn print_progress(prompts: &dyn PromptPort, stage: usize, label: &str) {
+    prompts.display(&format!("\n== Step {stage}/5: {label} =="));
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1286,7 +1254,9 @@ fn collect_point_buy_scores(prompts: &dyn PromptPort) -> Result<AbilityScores> {
             if remaining == 0 {
                 return Ok(scores_from(values));
             }
-            println!("Spend the remaining {remaining} points before finishing.");
+            prompts.display(&format!(
+                "Spend the remaining {remaining} points before finishing."
+            ));
             continue;
         }
         let index = ABILITIES
@@ -1334,13 +1304,16 @@ fn apply_background_increases(
     let plus_one: Vec<&str> = abilities
         .iter()
         .copied()
-        .filter(|ability| scores.score(ability) <= 19)
+        .filter(|ability| {
+            Ability::try_from(*ability).is_ok_and(|ability| scores.score(ability) <= 19)
+        })
         .collect();
     let plus_two: Vec<&str> = abilities
         .iter()
         .copied()
         .filter(|ability| {
-            scores.score(ability) <= 18 && plus_one.iter().any(|other| other != ability)
+            Ability::try_from(*ability).is_ok_and(|ability| scores.score(ability) <= 18)
+                && plus_one.iter().any(|other| other != ability)
         })
         .collect();
     let mut methods = Vec::new();
@@ -1923,132 +1896,6 @@ fn equipment_summary(items: &[character_wizard_srd_data::EquipmentGrant]) -> Str
         .join(", ")
 }
 
-fn print_character_review(character: &Character) {
-    println!("\nCharacter review");
-    for (label, value) in character_review_rows(character) {
-        println!("{label:<18} {value}");
-    }
-    println!("\nAccept the character or choose a section to revise.");
-}
-
-#[allow(clippy::too_many_lines)]
-fn character_review_rows(character: &Character) -> Vec<(&'static str, String)> {
-    let abilities = [
-        ("STR", "strength", character.abilities.strength),
-        ("DEX", "dexterity", character.abilities.dexterity),
-        ("CON", "constitution", character.abilities.constitution),
-        ("INT", "intelligence", character.abilities.intelligence),
-        ("WIS", "wisdom", character.abilities.wisdom),
-        ("CHA", "charisma", character.abilities.charisma),
-    ]
-    .into_iter()
-    .map(|(short_name, ability, score)| {
-        format!(
-            "{short_name} {score} ({:+})",
-            character.abilities.modifier(ability)
-        )
-    })
-    .collect::<Vec<_>>()
-    .join("  ");
-    let languages = std::iter::once("Common".to_owned())
-        .chain(character.selected_languages.iter().cloned())
-        .chain(character.class_choices.additional_language.iter().cloned())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut equipment = character
-        .inventory()
-        .into_iter()
-        .map(|item| {
-            if item.quantity > 1 {
-                format!("{} x {}", item.quantity, item.name)
-            } else {
-                item.name
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    if equipment.is_empty() {
-        equipment.push_str("No package items");
-    }
-    let gold = character.coins().gold;
-    write!(equipment, "; {gold} GP").expect("writing to String cannot fail");
-    let mut rows = vec![
-        ("Name", character.name.clone()),
-        (
-            "Character",
-            format!(
-                "Level {} {} {}",
-                character.level,
-                character.species_name(),
-                character.class_name()
-            ),
-        ),
-        ("Background", character.background_name().to_owned()),
-        ("Alignment", character.alignment.clone()),
-        ("Size", character.size.to_string()),
-        ("Abilities", abilities),
-        (
-            "Combat",
-            format!(
-                "HP {}  AC {}  Initiative {:+}  Speed {} ft.",
-                character.hit_points(),
-                character.armor_class(),
-                character.initiative_modifier(),
-                character.speed()
-            ),
-        ),
-        (
-            "Skills",
-            character
-                .skills()
-                .into_iter()
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
-        ("Languages", languages),
-        ("Equipment", equipment),
-    ];
-    if !character.class_choices.cantrips.is_empty() {
-        rows.push((
-            "Cantrips",
-            character
-                .class_choices
-                .cantrips
-                .iter()
-                .map(|spell| character.spell_name(spell).to_owned())
-                .collect::<Vec<_>>()
-                .join(", "),
-        ));
-    }
-    if !character.class_choices.prepared_spells.is_empty() {
-        rows.push((
-            "Prepared spells",
-            character
-                .class_choices
-                .prepared_spells
-                .iter()
-                .map(|spell| character.spell_name(spell).to_owned())
-                .collect::<Vec<_>>()
-                .join(", "),
-        ));
-    }
-    if character.resolved_pack_class.is_some() {
-        rows.push(("Class features", character.class_traits().join("; ")));
-        if !character.class_resources().is_empty() {
-            rows.push((
-                "Class resources",
-                character
-                    .class_resources()
-                    .iter()
-                    .map(crate::character_wizard_domain::ClassResource::summary)
-                    .collect::<Vec<_>>()
-                    .join("; "),
-            ));
-        }
-    }
-    rows
-}
-
 fn collect_details(prompts: &dyn PromptPort) -> Result<DetailsDraft> {
     Ok(DetailsDraft {
         backstory: prompts.optional_prompt("Backstory")?,
@@ -2151,8 +1998,8 @@ mod tests {
         run_quick_interactive_with_catalog, run_quick_interactive_with_seed,
     };
     use crate::character_wizard_domain::{
-        Character, DataPackReference, PackBackground, PackClass, PackEquipment, PackSpecies,
-        PackSpell,
+        Ability, Character, DataPackReference, PackBackground, PackClass, PackEquipment,
+        PackSpecies, PackSpell,
     };
     use crate::creation::{PromptPort, Result, WizardError};
 
@@ -2890,10 +2737,10 @@ mod tests {
         assert_eq!(character.class_choices.weapon_masteries.len(), 2);
         assert_eq!(
             character.hit_points(),
-            11 + character.abilities.modifier("constitution")
+            11 + character.abilities.modifier(Ability::Constitution)
         );
-        assert!(character.sheet().saving_throw("strength").proficient);
-        assert!(character.sheet().saving_throw("wisdom").proficient);
+        assert!(character.sheet().saving_throw(Ability::Strength).proficient);
+        assert!(character.sheet().saving_throw(Ability::Wisdom).proficient);
         assert_eq!(character.armor_training(), "Light, Medium, Shields");
         assert_eq!(character.weapon_proficiencies(), "Simple and Martial");
         assert!(

@@ -9,31 +9,83 @@ use std::{
 use serde::Deserialize;
 
 use crate::character_wizard_domain::{
-    PackBackground, PackClass, PackEquipment, PackEquipmentKind, PackSpecies, PackSpell,
+    DataPackReference, PackBackground, PackClass, PackEquipment, PackEquipmentKind, PackSpecies,
+    PackSpell,
 };
+use crate::rules::RulesContext;
 
 pub const MANIFEST_FILE: &str = "data-pack.json";
 const FORMAT_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct DataPackManifest {
-    pub format_version: u8,
-    pub id: String,
-    pub version: u32,
-    pub name: String,
+struct DataPackManifest {
+    format_version: u8,
+    id: String,
+    version: u32,
+    name: String,
     #[serde(default)]
-    pub files: BTreeMap<ContentFamily, PathBuf>,
-    #[serde(skip)]
-    pub species: Vec<PackSpecies>,
-    #[serde(skip)]
-    pub backgrounds: Vec<PackBackground>,
-    #[serde(skip)]
-    pub equipment: Vec<PackEquipment>,
-    #[serde(skip)]
-    pub spells: Vec<PackSpell>,
-    #[serde(skip)]
-    pub classes: Vec<PackClass>,
+    files: BTreeMap<ContentFamily, PathBuf>,
+}
+
+/// Fully loaded and validated external campaign content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DataPack {
+    manifest: DataPackManifest,
+    reference: DataPackReference,
+    species: Vec<PackSpecies>,
+    backgrounds: Vec<PackBackground>,
+    equipment: Vec<PackEquipment>,
+    spells: Vec<PackSpell>,
+    classes: Vec<PackClass>,
+}
+
+impl DataPack {
+    pub(crate) fn name(&self) -> &str {
+        &self.manifest.name
+    }
+
+    #[cfg(test)]
+    pub(crate) fn files(&self) -> &BTreeMap<ContentFamily, PathBuf> {
+        &self.manifest.files
+    }
+
+    #[cfg(test)]
+    pub(crate) fn species(&self) -> &[PackSpecies] {
+        &self.species
+    }
+
+    #[cfg(test)]
+    pub(crate) fn backgrounds(&self) -> &[PackBackground] {
+        &self.backgrounds
+    }
+
+    #[cfg(test)]
+    pub(crate) fn equipment(&self) -> &[PackEquipment] {
+        &self.equipment
+    }
+
+    #[cfg(test)]
+    pub(crate) fn spells(&self) -> &[PackSpell] {
+        &self.spells
+    }
+
+    #[cfg(test)]
+    pub(crate) fn classes(&self) -> &[PackClass] {
+        &self.classes
+    }
+
+    pub(crate) fn rules(&self) -> RulesContext<'_> {
+        RulesContext::with_pack(
+            &self.reference,
+            self.name(),
+            &self.classes,
+            &self.species,
+            &self.backgrounds,
+            &self.equipment,
+            &self.spells,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,7 +118,7 @@ impl ContentFamily {
 ///
 /// Returns an error when the directory, manifest, format, or declared content
 /// file is invalid.
-pub fn load(directory: &Path) -> Result<DataPackManifest, String> {
+pub(crate) fn load(directory: &Path) -> Result<DataPack, String> {
     if !directory.is_dir() {
         return Err(format!(
             "data pack is not a directory: {}",
@@ -76,54 +128,68 @@ pub fn load(directory: &Path) -> Result<DataPackManifest, String> {
     let manifest_path = directory.join(MANIFEST_FILE);
     let source = fs::read_to_string(&manifest_path)
         .map_err(|error| format!("unable to read {}: {error}", manifest_path.display()))?;
-    let mut manifest: DataPackManifest = serde_json::from_str(&source).map_err(|error| {
+    let manifest: DataPackManifest = serde_json::from_str(&source).map_err(|error| {
         format!(
             "invalid data pack manifest {}: {error}",
             manifest_path.display()
         )
     })?;
     validate_manifest(&manifest, directory)?;
-    if let Some(relative) = manifest.files.get(&ContentFamily::Species) {
+    let reference = DataPackReference {
+        id: manifest.id.clone(),
+        format_version: manifest.format_version,
+        version: manifest.version,
+    };
+    let mut pack = DataPack {
+        manifest,
+        reference,
+        species: Vec::new(),
+        backgrounds: Vec::new(),
+        equipment: Vec::new(),
+        spells: Vec::new(),
+        classes: Vec::new(),
+    };
+    if let Some(relative) = pack.manifest.files.get(&ContentFamily::Species) {
         let path = directory.join(relative);
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("unable to read species data: {error}"))?;
-        manifest.species = serde_json::from_str(&source)
+        pack.species = serde_json::from_str(&source)
             .map_err(|error| format!("invalid species data {}: {error}", path.display()))?;
-        validate_species(&manifest.species)?;
+        validate_species(&pack.species)?;
     }
-    if let Some(relative) = manifest.files.get(&ContentFamily::Equipment) {
+    if let Some(relative) = pack.manifest.files.get(&ContentFamily::Equipment) {
         let path = directory.join(relative);
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("unable to read equipment data: {error}"))?;
-        manifest.equipment = serde_json::from_str(&source)
+        pack.equipment = serde_json::from_str(&source)
             .map_err(|error| format!("invalid equipment data {}: {error}", path.display()))?;
-        validate_equipment(&manifest.equipment)?;
+        validate_equipment(&pack.equipment)?;
     }
-    if let Some(relative) = manifest.files.get(&ContentFamily::Spells) {
+    if let Some(relative) = pack.manifest.files.get(&ContentFamily::Spells) {
         let path = directory.join(relative);
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("unable to read spells data: {error}"))?;
-        manifest.spells = serde_json::from_str(&source)
+        pack.spells = serde_json::from_str(&source)
             .map_err(|error| format!("invalid spells data {}: {error}", path.display()))?;
-        validate_spells(&manifest.spells)?;
+        validate_spells(&pack.spells)?;
     }
-    if let Some(relative) = manifest.files.get(&ContentFamily::Backgrounds) {
+    if let Some(relative) = pack.manifest.files.get(&ContentFamily::Backgrounds) {
         let path = directory.join(relative);
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("unable to read backgrounds data: {error}"))?;
-        manifest.backgrounds = serde_json::from_str(&source)
+        pack.backgrounds = serde_json::from_str(&source)
             .map_err(|error| format!("invalid backgrounds data {}: {error}", path.display()))?;
-        validate_backgrounds(&manifest.backgrounds, &manifest.equipment)?;
+        validate_backgrounds(&pack.backgrounds, &pack.equipment)?;
     }
-    if let Some(relative) = manifest.files.get(&ContentFamily::Classes) {
+    if let Some(relative) = pack.manifest.files.get(&ContentFamily::Classes) {
         let path = directory.join(relative);
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("unable to read classes data: {error}"))?;
-        manifest.classes = serde_json::from_str(&source)
+        pack.classes = serde_json::from_str(&source)
             .map_err(|error| format!("invalid classes data {}: {error}", path.display()))?;
-        validate_classes(&manifest.classes, &manifest.spells)?;
+        validate_classes(&pack.classes, &pack.spells)?;
     }
-    Ok(manifest)
+    Ok(pack)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -772,15 +838,18 @@ mod tests {
         )
         .expect("write classes");
 
-        let manifest = load(&directory).expect("load pack");
+        let pack = load(&directory).expect("load pack");
         std::fs::remove_dir_all(&directory).expect("remove pack");
-        assert_eq!(manifest.id, "my-campaign");
-        assert_eq!(manifest.files.len(), 5);
-        assert_eq!(manifest.species[0].id, "moonfolk");
-        assert_eq!(manifest.backgrounds[0].id, "lunar-scout");
-        assert_eq!(manifest.equipment[0].id, "moonblade");
-        assert_eq!(manifest.spells[0].id, "moon-spark");
-        assert_eq!(manifest.classes[0].id, "moon-warden");
+        assert_eq!(
+            pack.rules().reference().expect("pack reference").id,
+            "my-campaign"
+        );
+        assert_eq!(pack.files().len(), 5);
+        assert_eq!(pack.species()[0].id, "moonfolk");
+        assert_eq!(pack.backgrounds()[0].id, "lunar-scout");
+        assert_eq!(pack.equipment()[0].id, "moonblade");
+        assert_eq!(pack.spells()[0].id, "moon-spark");
+        assert_eq!(pack.classes()[0].id, "moon-warden");
     }
 
     #[test]
