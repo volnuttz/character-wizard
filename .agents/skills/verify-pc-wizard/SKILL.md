@@ -37,9 +37,11 @@ change without rewriting unrelated user work.
 
    ```console
    cargo +1.88.0 build --release --locked
-   target/release/character-wizard create --template assets/character-sheet.pdf \
-     --from-json fixtures/complete-character.json \
-     --json /tmp/character.json --output /tmp/character.pdf --force
+   target/release/character-wizard random --class Fighter --species Human \
+     --background Soldier --template assets/character-sheet.pdf \
+     --json /tmp/generated-character.json --pdf /tmp/generated-character.pdf --force
+   target/release/character-wizard render fixtures/complete-character.json \
+     --template assets/character-sheet.pdf --pdf /tmp/character.pdf --force
    ```
 
    Do not claim interactive behavior was verified when only unit tests ran. Do not

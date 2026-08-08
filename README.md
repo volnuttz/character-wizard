@@ -74,10 +74,10 @@ Set `CHARACTER_WIZARD_CACHE_DIR` to use a different cache location.
 
 By default, output names come from the character name, lowercased and made safe
 for a filename: `Legolas` becomes `legolas.json` and `legolas.pdf`. Use `--json`
-and `--output` whenever you want different names or folders:
+and `--pdf` whenever you want different names or folders:
 
 ```console
-character-wizard create --json saves/legolas.json --output sheets/legolas.pdf
+character-wizard create --json saves/legolas.json --pdf sheets/legolas.pdf
 ```
 
 Existing outputs require confirmation. Add `--force` for scripts and other
@@ -95,11 +95,11 @@ character-wizard show legolas.json
 You can render a known JSON record without completing the wizard again:
 
 ```console
-character-wizard create --from-json legolas.json --force
+character-wizard render legolas.json --force
 ```
 
-That command still uses the name stored in the JSON for the default output
-names. Pass `--json` or `--output` to override either one.
+That command uses the name stored in the JSON for the default PDF name. Pass
+`--pdf` to choose a different destination.
 
 The current directory is the default character collection, so bare character
 names resolve to JSON files beside the command invocation:

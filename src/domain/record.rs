@@ -460,13 +460,6 @@ pub struct Character {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedCharacter(pub(crate) Character);
 
-impl ResolvedCharacter {
-    #[must_use]
-    pub fn into_record(self) -> Character {
-        self.0
-    }
-}
-
 impl Deref for ResolvedCharacter {
     type Target = Character;
 
