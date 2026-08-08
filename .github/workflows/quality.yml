@@ -2,6 +2,8 @@ name: Quality
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -13,6 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: Rust formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt
+      - name: Check Rust formatting
+        run: cargo +1.88.0 fmt --check
+
   quality:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -26,30 +39,69 @@ jobs:
           - macos-15-intel
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install pinned Rust toolchain
-        run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
-      - name: Check Rust formatting
-        run: cargo +1.88.0 fmt --check
+        run: rustup toolchain install 1.88.0 --profile minimal --component clippy
+      - name: Cache Cargo dependencies and build outputs
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-quality-${{ runner.os }}-${{ runner.arch }}-1.88.0-${{ hashFiles('Cargo.lock') }}
       - name: Lint Rust workspace
         run: cargo +1.88.0 clippy --workspace --all-targets -- -D warnings
       - name: Test Rust workspace
         run: cargo +1.88.0 test --workspace --locked
+
+  current-stable:
+    name: Current stable Rust
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install current stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Cache Cargo dependencies and build outputs
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-current-stable-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+      - name: Test with current stable Rust
+        run: cargo +stable test --workspace --locked
 
   coverage:
     name: Rust coverage
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.88.0 --profile minimal --component llvm-tools-preview
+      - name: Cache Cargo dependencies and coverage tool
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-llvm-cov
+            target/llvm-cov-target
+          key: cargo-coverage-${{ runner.os }}-${{ runner.arch }}-1.88.0-llvm-cov-0.8.7-${{ hashFiles('Cargo.lock') }}
       - name: Install coverage tool
-        run: cargo +1.88.0 install --locked cargo-llvm-cov --version 0.8.7
-      - name: Generate coverage report
-        run: cargo +1.88.0 llvm-cov --workspace --locked --lcov --output-path lcov.info
+        shell: bash
+        run: >-
+          command -v cargo-llvm-cov >/dev/null ||
+          cargo +1.88.0 install --locked cargo-llvm-cov --version 0.8.7
+      - name: Generate and enforce coverage report
+        run: >-
+          cargo +1.88.0 llvm-cov --workspace --locked
+          --fail-under-lines 80 --lcov --output-path lcov.info
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rust-coverage
           path: lcov.info

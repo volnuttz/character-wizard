@@ -11,6 +11,12 @@ All notable changes to character-wizard are documented here. The project follows
   of `./characters`; `--directory` continues to select a different collection.
 - `list` now ignores unrelated or malformed JSON files instead of failing the
   entire collection scan.
+- GitHub Actions now avoid duplicate internal-branch push and pull-request runs,
+  run formatting once, retain cross-platform lint/tests, and reserve tag runs for
+  native release publication.
+- CI now enforces an 80% line-coverage floor from the measured 81.11% baseline,
+  tests both Rust 1.88 and current stable, caches expensive Cargo work, separates
+  vulnerability and dependency-policy scans, and pins Actions to immutable SHAs.
 
 ## [0.6.0] - 2026-08-08
 

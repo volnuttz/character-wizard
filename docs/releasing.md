@@ -31,9 +31,10 @@ Git tag, executable version, changelog heading, and release title must agree.
    git push origin vX.Y.Z
    ```
 
-The tag-triggered Native binaries workflow rebuilds and smoke-tests Linux x86-64,
-Windows x86-64, macOS ARM64, and macOS x86-64 binaries, creates archives and
-SHA-256 files, and publishes the existing tag through a GitHub Release.
+Only the Native binaries workflow runs for the release tag. It rebuilds and
+smoke-tests Linux x86-64, Windows x86-64, macOS ARM64, and macOS x86-64 binaries,
+creates archives and SHA-256 files, and publishes the existing tag through a
+GitHub Release.
 
 If publication fails after a successful tag build, recover without moving the tag:
 
@@ -41,9 +42,11 @@ If publication fails after a successful tag build, recover without moving the ta
 gh workflow run "Native binaries" --ref main -f release_tag=vX.Y.Z
 ```
 
-If an authenticated release push does not create workflows, manually dispatch
-`Quality`, `Dependency Audit`, and `Native binaries` on the unchanged default
-branch. Verify that every run uses the exact release commit before tagging.
+If an authenticated release-commit push does not create workflows, manually
+dispatch `Quality`, `Dependency Audit`, and `Native binaries` on the unchanged
+default branch. Verify that every run uses the exact release commit before
+tagging. If the tag push does not start publication, use the Native binaries
+recovery dispatch above without moving the tag.
 Workflow concurrency includes the commit SHA so delayed events for an older
 commit cannot cancel verification of a newer release commit.
 

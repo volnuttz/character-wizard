@@ -2,6 +2,8 @@ name: Dependency Audit
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
   schedule:
@@ -20,14 +22,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Cache Cargo dependencies and audit tools
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ runner.temp }}/cargo-tools
+          key: cargo-audit-tools-${{ runner.os }}-${{ runner.arch }}-audit-0.22.2-deny-0.20.2
+      - name: Add audit tools to PATH
+        run: echo "${RUNNER_TEMP}/cargo-tools/bin" >> "${GITHUB_PATH}"
       - name: Install pinned audit tools
-        run: >-
-          cargo +1.88.0 install --locked cargo-audit --version 0.22.2 &&
-          cargo +1.88.0 install --locked cargo-deny --version 0.20.2
+        shell: bash
+        run: |
+          if [[ ! -x "${RUNNER_TEMP}/cargo-tools/bin/cargo-audit" ]]; then
+            cargo +1.88.0 install --locked cargo-audit --version 0.22.2 \
+              --root "${RUNNER_TEMP}/cargo-tools"
+          fi
+          if [[ ! -x "${RUNNER_TEMP}/cargo-tools/bin/cargo-deny" ]]; then
+            cargo +1.88.0 install --locked cargo-deny --version 0.20.2 \
+              --root "${RUNNER_TEMP}/cargo-tools"
+          fi
       - name: Audit vulnerabilities
         run: cargo +1.88.0 audit
       - name: Audit licenses, bans, and sources
-        run: cargo +1.88.0 deny check
+        run: cargo +1.88.0 deny check licenses bans sources

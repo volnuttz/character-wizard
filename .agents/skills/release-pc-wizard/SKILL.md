@@ -61,18 +61,21 @@ scope, then rerun the failed check and the full gate.
 1. Commit only the audited release files with a message such as
    `release: character-wizard X.Y.Z` and push the release commit to the default
    branch.
-2. Monitor both `Quality` and `Native binaries` workflows for that exact commit.
-   Verify the commit SHA; do not rely only on workflow names or the latest run.
-3. Create and push the annotated `vX.Y.Z` tag only after both commit workflows
-   succeed:
+2. Monitor `Quality`, `Dependency Audit`, and `Native binaries` for that exact
+   commit. Verify the commit SHA; do not rely only on workflow names or the
+   latest run.
+3. Create and push the annotated `vX.Y.Z` tag only after all three commit
+   workflows succeed:
 
    ```console
    git tag -a vX.Y.Z -m "character-wizard X.Y.Z"
    git push origin vX.Y.Z
    ```
 
-4. Monitor both tag-triggered workflows through completion. The tag's Native
-   binaries run must include the successful GitHub Release publication job.
+4. Monitor the tag-triggered `Native binaries` workflow through completion. It
+   must include the successful GitHub Release publication job; quality and
+   dependency gates run on the exact release commit before tagging, not again for
+   the immutable tag.
 5. Prefer authenticated `gh` inspection. If `gh` authentication is unavailable
    and the repository is public, use the GitHub REST API read-only endpoints for
    workflow and release status. Never expose credentials in output.
