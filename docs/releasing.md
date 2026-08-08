@@ -21,7 +21,7 @@ Git tag, executable version, changelog heading, and release title must agree.
    target/release/character-wizard --version
    ```
 
-4. Smoke-test `validate`, `show`, and `create --from-json` with the supported
+4. Smoke-test `validate`, `show`, `random`, and `render` with the supported
    development template. Confirm the optimized executable contains no PDF fixture.
 5. Commit the release changes on a dedicated branch, push it, and open a pull
    request into `main`. Do not bypass the `Required main checks` ruleset. After

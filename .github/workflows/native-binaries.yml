@@ -68,8 +68,10 @@ jobs:
           "${{ matrix.binary }}" --version
           "${{ matrix.binary }}" validate fixtures/complete-character.json
           "${{ matrix.binary }}" show fixtures/complete-character.json
-          "${{ matrix.binary }}" create --template assets/character-sheet.pdf --from-json fixtures/complete-character.json --json "${RUNNER_TEMP}/character.json" --output "${RUNNER_TEMP}/character.pdf" --force
-          test -s "${RUNNER_TEMP}/character.json"
+          "${{ matrix.binary }}" random --class Fighter --species Human --background Soldier --template assets/character-sheet.pdf --json "${RUNNER_TEMP}/generated.json" --pdf "${RUNNER_TEMP}/generated.pdf" --force
+          "${{ matrix.binary }}" render fixtures/complete-character.json --template assets/character-sheet.pdf --pdf "${RUNNER_TEMP}/character.pdf" --force
+          test -s "${RUNNER_TEMP}/generated.json"
+          test -s "${RUNNER_TEMP}/generated.pdf"
           test -s "${RUNNER_TEMP}/character.pdf"
       - name: Smoke-test executable (Windows)
         if: runner.os == 'Windows'
@@ -79,8 +81,10 @@ jobs:
           & "${{ matrix.binary }}" --version
           & "${{ matrix.binary }}" validate fixtures/complete-character.json
           & "${{ matrix.binary }}" show fixtures/complete-character.json
-          & "${{ matrix.binary }}" create --template assets/character-sheet.pdf --from-json fixtures/complete-character.json --json "$env:RUNNER_TEMP/character.json" --output "$env:RUNNER_TEMP/character.pdf" --force
-          if (-not (Test-Path "$env:RUNNER_TEMP/character.json" -PathType Leaf)) { throw "JSON output missing" }
+          & "${{ matrix.binary }}" random --class Fighter --species Human --background Soldier --template assets/character-sheet.pdf --json "$env:RUNNER_TEMP/generated.json" --pdf "$env:RUNNER_TEMP/generated.pdf" --force
+          & "${{ matrix.binary }}" render fixtures/complete-character.json --template assets/character-sheet.pdf --pdf "$env:RUNNER_TEMP/character.pdf" --force
+          if (-not (Test-Path "$env:RUNNER_TEMP/generated.json" -PathType Leaf)) { throw "Generated JSON output missing" }
+          if (-not (Test-Path "$env:RUNNER_TEMP/generated.pdf" -PathType Leaf)) { throw "Generated PDF output missing" }
           if (-not (Test-Path "$env:RUNNER_TEMP/character.pdf" -PathType Leaf)) { throw "PDF output missing" }
       - name: Package executable and checksum (Unix)
         if: runner.os != 'Windows'

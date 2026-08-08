@@ -50,10 +50,8 @@ enum Command {
 struct CreateArgs {
     #[arg(long)]
     template: Option<PathBuf>,
-    #[arg(long, conflicts_with = "from_json")]
-    quick: bool,
     #[arg(long)]
-    from_json: Option<PathBuf>,
+    quick: bool,
     #[arg(
         long,
         value_name = "PATH",
@@ -66,7 +64,7 @@ struct CreateArgs {
         value_name = "PATH",
         help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
     )]
-    output: Option<PathBuf>,
+    pdf: Option<PathBuf>,
     #[arg(long, default_value = "character-draft.json")]
     draft: PathBuf,
     #[arg(long)]
@@ -95,7 +93,7 @@ struct RandomArgs {
         value_name = "PATH",
         help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
     )]
-    output: Option<PathBuf>,
+    pdf: Option<PathBuf>,
     #[arg(long)]
     force: bool,
 }
@@ -105,8 +103,8 @@ struct EditArgs {
     #[command(flatten)]
     character: CharacterRefArgs,
     #[arg(long, help = "Render the edited character to this PDF path")]
-    output: Option<PathBuf>,
-    #[arg(long, requires = "output")]
+    pdf: Option<PathBuf>,
+    #[arg(long, requires = "pdf")]
     template: Option<PathBuf>,
     #[arg(long)]
     force: bool,
@@ -124,7 +122,7 @@ struct RenderArgs {
         value_name = "PATH",
         help = "Path for the filled character sheet (defaults to <character-name>.pdf)"
     )]
-    output: Option<PathBuf>,
+    pdf: Option<PathBuf>,
     #[arg(long)]
     force: bool,
 }
@@ -314,7 +312,7 @@ fn random(options: RandomArgs, rules: RulesContext<'_>) -> CliResult {
         .json
         .unwrap_or_else(|| character_output_path(&character.name, "json"));
     let pdf_output = options
-        .output
+        .pdf
         .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
     confirm_overwrite(&[&json_output, &pdf_output], options.force)?;
     create_parent(&pdf_output)?;
@@ -355,7 +353,7 @@ fn render(options: RenderArgs, rules: RulesContext<'_>) -> CliResult {
     let character = load_character(&resolve_character_path(&options.character), rules)?;
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
     let output = options
-        .output
+        .pdf
         .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
     confirm_overwrite(&[&output], options.force)?;
     create_parent(&output)?;
@@ -378,18 +376,18 @@ fn edit(options: EditArgs, rules: RulesContext<'_>) -> CliResult {
     edited.data_pack.clone_from(&character.data_pack);
     let edited = resolve_rules(edited, rules)?;
     let template = options
-        .output
+        .pdf
         .as_ref()
         .map(|_| resolve_template(options.template.as_deref()))
         .transpose()
         .map_err(|error| (1, error))?;
     let mut outputs = vec![character_path.as_path()];
-    if let Some(output) = options.output.as_deref() {
+    if let Some(output) = options.pdf.as_deref() {
         outputs.push(output);
     }
     confirm_overwrite(&outputs, options.force)?;
     write_character(&character_path, &edited)?;
-    if let Some(output) = options.output {
+    if let Some(output) = options.pdf {
         create_parent(&output)?;
         if let Err(error) = character_wizard_pdf_renderer::render_character(
             &edited,
@@ -460,9 +458,7 @@ fn create(options: CreateArgs, rules: RulesContext<'_>) -> CliResult {
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
 
     let mut completed_draft = None;
-    let mut character = if let Some(source) = options.from_json {
-        load_character(&source, rules)?.into_record()
-    } else if options.quick {
+    let mut character = if options.quick {
         character_wizard_creation::run_quick_interactive_with_rules(rules)
             .map_err(|error| (1, error.to_string()))?
     } else {
@@ -489,7 +485,7 @@ fn create(options: CreateArgs, rules: RulesContext<'_>) -> CliResult {
         .json
         .unwrap_or_else(|| character_output_path(&character.name, "json"));
     let pdf_output = options
-        .output
+        .pdf
         .unwrap_or_else(|| character_output_path(&character.name, "pdf"));
     confirm_overwrite(&[&json_output, &pdf_output], options.force)?;
     create_parent(&pdf_output)?;
@@ -693,7 +689,7 @@ mod tests {
         assert!(options.template.is_none());
         assert!(!options.quick);
         assert!(options.json.is_none());
-        assert!(options.output.is_none());
+        assert!(options.pdf.is_none());
     }
 
     #[test]
@@ -703,7 +699,7 @@ mod tests {
             "create",
             "--json",
             "records/legolas.json",
-            "--output",
+            "--pdf",
             "sheets/legolas.pdf",
         ])
         .expect("parse create");
@@ -711,7 +707,16 @@ mod tests {
             panic!("expected create command");
         };
         assert_eq!(options.json, Some(PathBuf::from("records/legolas.json")));
-        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert_eq!(options.pdf, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert!(
+            Cli::try_parse_from([
+                "character-wizard",
+                "create",
+                "--output",
+                "sheets/legolas.pdf",
+            ])
+            .is_err()
+        );
     }
 
     #[test]
@@ -741,7 +746,7 @@ mod tests {
     }
 
     #[test]
-    fn create_accepts_quick_but_not_a_json_source() {
+    fn create_accepts_quick_and_rejects_the_removed_json_source() {
         let cli = Cli::try_parse_from(["character-wizard", "create", "--quick"])
             .expect("parse quick create");
         let Command::Create(options) = cli.command else {
@@ -749,14 +754,8 @@ mod tests {
         };
         assert!(options.quick);
         assert!(
-            Cli::try_parse_from([
-                "character-wizard",
-                "create",
-                "--quick",
-                "--from-json",
-                "legolas.json",
-            ])
-            .is_err()
+            Cli::try_parse_from(["character-wizard", "create", "--from-json", "legolas.json",])
+                .is_err()
         );
     }
 
@@ -850,7 +849,7 @@ mod tests {
             "records/legolas.json",
             "--template",
             "assets/character-sheet.pdf",
-            "--output",
+            "--pdf",
             "sheets/legolas.pdf",
             "--force",
         ])
@@ -866,7 +865,7 @@ mod tests {
             options.template,
             Some(PathBuf::from("assets/character-sheet.pdf"))
         );
-        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert_eq!(options.pdf, Some(PathBuf::from("sheets/legolas.pdf")));
         assert!(options.force);
     }
 
@@ -878,7 +877,7 @@ mod tests {
             "records/legolas.json",
             "--template",
             "assets/character-sheet.pdf",
-            "--output",
+            "--pdf",
             "sheets/legolas.pdf",
             "--force",
         ])
@@ -894,7 +893,7 @@ mod tests {
             options.template,
             Some(PathBuf::from("assets/character-sheet.pdf"))
         );
-        assert_eq!(options.output, Some(PathBuf::from("sheets/legolas.pdf")));
+        assert_eq!(options.pdf, Some(PathBuf::from("sheets/legolas.pdf")));
         assert!(options.force);
     }
 
@@ -913,7 +912,7 @@ mod tests {
                     directory: None,
                 },
                 template: Some(PathBuf::from("assets/character-sheet.pdf")),
-                output: Some(output.clone()),
+                pdf: Some(output.clone()),
                 force: true,
             },
             RulesContext::srd(),
@@ -962,7 +961,7 @@ mod tests {
                 species: Some("moonfolk".to_owned()),
                 template: Some(PathBuf::from("assets/character-sheet.pdf")),
                 json: Some(json.clone()),
-                output: Some(pdf.clone()),
+                pdf: Some(pdf.clone()),
                 force: true,
             },
             pack.rules(),

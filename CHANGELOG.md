@@ -5,6 +5,13 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the redundant `create --from-json` path; use `render <character>` to
+  generate a PDF from an existing character record.
+- Renamed the PDF destination option from `--output` to `--pdf` for `create`,
+  `random`, `edit`, and `render`. The JSON-focused `import --output` is unchanged.
+
 ## [0.6.1] - 2026-08-08
 
 ### Changed
