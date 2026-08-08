@@ -101,6 +101,27 @@ character-wizard create --from-json legolas.json --force
 That command still uses the name stored in the JSON for the default output
 names. Pass `--json` or `--output` to override either one.
 
+The optional `./characters` collection supports bare character names:
+
+```console
+character-wizard list
+character-wizard show legolas
+character-wizard edit legolas
+character-wizard render legolas
+```
+
+Export a collection character as a compact copy-and-paste code and import it
+back into canonical JSON:
+
+```console
+character-wizard export legolas
+character-wizard import <code>
+```
+
+Explicit JSON paths remain supported. See [portable character
+sharing](docs/sharing.md) for destinations, data-pack handling, format limits,
+and security guidance.
+
 ## Build from source
 
 This project uses Rust 1.88.0.

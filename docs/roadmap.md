@@ -619,10 +619,11 @@ Exit criteria:
 Goal: make it easy to send and receive characters in CLI-native channels without
 replacing the canonical JSON-file workflow.
 
-- [ ] Add `export <character.json> --share` to produce a compact, versioned
-  share representation.
-- [ ] Add `import <code>` to validate, decode, and save a shared character.
-- [ ] Specify format versioning, size limits, validation errors, and clear
+- [x] Add `export <character>` to produce a compact, versioned share
+  representation from a collection name or explicit JSON path.
+- [x] Add `import <code>` to validate, decode, and save a shared character into
+  the collection or an explicit output path.
+- [x] Specify format versioning, size limits, validation errors, and clear
   guidance that shared content is untrusted input.
 
 Exit criteria:

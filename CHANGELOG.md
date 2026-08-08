@@ -36,6 +36,12 @@ All notable changes to character-wizard are documented here. The project follows
   borrows a supported SRD list and includes compatible pack spells. Choices,
   resources, spellcasting statistics, slots, and spell tables are validated and
   rendered through existing character and PDF projections.
+- `export <character>` emits a compact `cw1:` share code from a collection name
+  or explicit JSON path, and `import <code>` validates untrusted input before
+  saving canonical JSON to the collection or an explicit destination.
+- Version-1 share codes use bounded, unpadded Base64url JSON with explicit input
+  limits, exact data-pack resolution, collision protection, and documented
+  privacy and trust boundaries.
 
 ## [0.5.1] - 2026-08-06
 

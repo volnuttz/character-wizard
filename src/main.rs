@@ -14,6 +14,7 @@ pub mod creation;
 mod data_pack;
 pub mod domain;
 pub mod pdf_renderer;
+mod share;
 pub mod srd_data;
 
 pub use self::creation as character_wizard_creation;
@@ -48,6 +49,8 @@ enum Command {
     List(ListArgs),
     Validate { character_json: PathBuf },
     Show(ShowArgs),
+    Export(ExportArgs),
+    Import(ImportArgs),
 }
 
 #[derive(Args)]
@@ -140,6 +143,33 @@ struct ShowArgs {
 }
 
 #[derive(Args)]
+struct ExportArgs {
+    #[command(flatten)]
+    character: CharacterRefArgs,
+}
+
+#[derive(Args)]
+struct ImportArgs {
+    #[arg(value_name = "CODE")]
+    code: String,
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "JSON destination (defaults to the character collection)"
+    )]
+    output: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "PATH",
+        conflicts_with = "output",
+        help = "Character collection directory (defaults to ./characters)"
+    )]
+    directory: Option<PathBuf>,
+    #[arg(long)]
+    force: bool,
+}
+
+#[derive(Args)]
 struct CharacterRefArgs {
     #[arg(value_name = "CHARACTER")]
     character: PathBuf,
@@ -181,7 +211,9 @@ fn run(cli: Cli) -> CliResult {
         .map(data_pack::load)
         .transpose()
         .map_err(|error| (1, error))?;
-    if let Some(pack) = &pack {
+    if let Some(pack) = &pack
+        && !matches!(&cli.command, Command::Export(_))
+    {
         println!("Using data pack: {} ({})", pack.name, pack.id);
     }
     match cli.command {
@@ -192,7 +224,40 @@ fn run(cli: Cli) -> CliResult {
         Command::List(options) => list(&options, pack.as_ref()),
         Command::Validate { character_json } => validate(&character_json, pack.as_ref()),
         Command::Show(options) => show(&resolve_character_path(&options.character), pack.as_ref()),
+        Command::Export(options) => export_character(&options, pack.as_ref()),
+        Command::Import(options) => import_character(options, pack.as_ref()),
     }
+}
+
+fn export_character(options: &ExportArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
+    let character = load_character(&resolve_character_path(&options.character), pack)?;
+    println!("{}", share::encode(&character).map_err(|error| (1, error))?);
+    Ok(())
+}
+
+fn import_character(options: ImportArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
+    let mut character = share::decode(&options.code).map_err(|error| (1, error))?;
+    ensure_data_pack(&character, pack)?;
+    resolve_pack_content(&mut character, pack)?;
+    let output = options.output.unwrap_or_else(|| {
+        collection_directory(options.directory.as_deref())
+            .join(character_output_path(&character.name, "json"))
+    });
+    if output.exists() && !options.force {
+        return Err((
+            1,
+            format!(
+                "import destination already exists: {}; pass --force to overwrite it",
+                output.display()
+            ),
+        ));
+    }
+    create_parent(&output)?;
+    fs::write(&output, character.to_json().map_err(|error| (1, error))?)
+        .map_err(|error| (1, format!("unable to write {}: {error}", output.display())))?;
+    println!("Imported {}.", character.name);
+    println!("JSON: {}", output.display());
+    Ok(())
 }
 
 fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
@@ -805,9 +870,9 @@ mod tests {
     use clap::Parser as _;
 
     use super::{
-        CharacterRefArgs, Cli, Command, RandomArgs, RenderArgs, canonical_srd_choice,
-        character_output_path, collection_characters, load_character, random, render,
-        resolve_character_path,
+        CharacterRefArgs, Cli, Command, ImportArgs, RandomArgs, RenderArgs, canonical_srd_choice,
+        character_output_path, collection_characters, import_character, load_character, random,
+        render, resolve_character_path,
     };
 
     #[test]
@@ -902,6 +967,79 @@ mod tests {
             .expect("parse data pack option");
         assert_eq!(cli.data, Some(PathBuf::from("my-campaign")));
         assert!(matches!(cli.command, Command::Random(_)));
+    }
+
+    #[test]
+    fn export_and_import_accept_collection_or_explicit_destinations() {
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "export",
+            "legolas",
+            "--directory",
+            "party",
+        ])
+        .expect("parse export");
+        let Command::Export(options) = cli.command else {
+            panic!("expected export command");
+        };
+        assert_eq!(options.character.character, PathBuf::from("legolas"));
+        assert_eq!(options.character.directory, Some(PathBuf::from("party")));
+
+        let cli = Cli::try_parse_from([
+            "character-wizard",
+            "import",
+            "cw1:AAAA",
+            "--output",
+            "party/legolas.json",
+            "--force",
+        ])
+        .expect("parse import");
+        let Command::Import(options) = cli.command else {
+            panic!("expected import command");
+        };
+        assert_eq!(options.output, Some(PathBuf::from("party/legolas.json")));
+        assert!(options.force);
+    }
+
+    #[test]
+    fn import_writes_canonical_json_and_refuses_an_existing_destination() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let character = crate::character_wizard_domain::Character::from_json(include_str!(
+            "../fixtures/complete-character.json"
+        ))
+        .expect("character fixture");
+        let code = crate::share::encode(&character).expect("share code");
+        let directory = std::env::temp_dir().join(format!(
+            "character-wizard-import-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let output = directory.join("binary-smoke-test.json");
+        import_character(
+            ImportArgs {
+                code: code.clone(),
+                output: None,
+                directory: Some(directory.clone()),
+                force: false,
+            },
+            None,
+        )
+        .expect("import character");
+        let imported = load_character(&output, None).expect("load imported character");
+        assert_eq!(imported, character);
+        let error = import_character(
+            ImportArgs {
+                code,
+                output: None,
+                directory: Some(directory.clone()),
+                force: false,
+            },
+            None,
+        )
+        .expect_err("refuse collision");
+        assert!(error.1.contains("--force"));
+        std::fs::remove_file(output).expect("remove imported fixture");
+        std::fs::remove_dir(directory).expect("remove import collection");
     }
 
     #[test]
