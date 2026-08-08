@@ -58,13 +58,16 @@ scope, then rerun the failed check and the full gate.
 
 ## Stage publication safely
 
-1. Commit only the audited release files with a message such as
-   `release: character-wizard X.Y.Z` and push the release commit to the default
-   branch.
-2. Monitor `Quality`, `Dependency Audit`, and `Native binaries` for that exact
-   commit. Verify the commit SHA; do not rely only on workflow names or the
-   latest run.
-3. Create and push the annotated `vX.Y.Z` tag only after all three commit
+1. Commit only the audited release files on a dedicated branch with a message
+   such as `release: character-wizard X.Y.Z`, push it, and open a pull request
+   into the default branch.
+2. Do not bypass the `Required main checks` ruleset. Merge only after all twelve
+   required pull-request checks pass, then record the exact merged commit on the
+   default branch.
+3. Monitor `Quality`, `Dependency Audit`, and `Native binaries` for that exact
+   merged commit. Verify the commit SHA; do not rely only on workflow names or
+   the latest run.
+4. Create and push the annotated `vX.Y.Z` tag only after all three commit
    workflows succeed:
 
    ```console
@@ -72,11 +75,11 @@ scope, then rerun the failed check and the full gate.
    git push origin vX.Y.Z
    ```
 
-4. Monitor the tag-triggered `Native binaries` workflow through completion. It
+5. Monitor the tag-triggered `Native binaries` workflow through completion. It
    must include the successful GitHub Release publication job; quality and
    dependency gates run on the exact release commit before tagging, not again for
    the immutable tag.
-5. Prefer authenticated `gh` inspection. If `gh` authentication is unavailable
+6. Prefer authenticated `gh` inspection. If `gh` authentication is unavailable
    and the repository is public, use the GitHub REST API read-only endpoints for
    workflow and release status. Never expose credentials in output.
 

@@ -676,8 +676,9 @@ and current Rust toolchains intentionally.
   compiler regressions are visible before a toolchain upgrade.
 - [x] Pin GitHub Actions to reviewed immutable commit SHAs and retain
   least-privilege workflow permissions.
-- [ ] Once the streamlined job names are stable, document and configure the
-  required main-branch checks so release policy and repository enforcement agree.
+- [x] Protect `main` with an active repository ruleset requiring all twelve
+  streamlined GitHub Actions checks, with GitHub Actions as their expected source,
+  and align the release policy with the enforced branch-and-pull-request flow.
 
 Exit criteria:
 
