@@ -16,7 +16,7 @@ implementation disagree.
 
 ## Current baseline
 
-Version: `0.6.0`
+Version: `0.6.1`
 
 The production repository now provides:
 
