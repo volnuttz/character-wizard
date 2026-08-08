@@ -155,7 +155,7 @@ struct ImportArgs {
         long,
         value_name = "PATH",
         conflicts_with = "output",
-        help = "Character collection directory (defaults to ./characters)"
+        help = "Character collection directory (defaults to the current directory)"
     )]
     directory: Option<PathBuf>,
     #[arg(long)]
@@ -169,7 +169,7 @@ struct CharacterRefArgs {
     #[arg(
         long,
         value_name = "PATH",
-        help = "Character collection directory (defaults to ./characters)"
+        help = "Character collection directory (defaults to the current directory)"
     )]
     directory: Option<PathBuf>,
 }
@@ -179,7 +179,7 @@ struct ListArgs {
     #[arg(
         long,
         value_name = "PATH",
-        help = "Character collection directory (defaults to ./characters)"
+        help = "Character collection directory (defaults to the current directory)"
     )]
     directory: Option<PathBuf>,
 }
@@ -558,15 +558,32 @@ fn collection_characters(
     directory: &Path,
     rules: RulesContext<'_>,
 ) -> Result<Vec<ResolvedCharacter>, AppError> {
-    CharacterRepository::new(Some(directory))
+    let paths = CharacterRepository::new(Some(directory))
         .json_paths()
-        .map_err(|error| AppError::new(ErrorKind::Persistence, error))?
-        .into_iter()
-        .map(|path| load_character(&path, rules))
-        .collect()
+        .map_err(|error| AppError::new(ErrorKind::Persistence, error))?;
+    let mut characters = Vec::new();
+    for path in paths {
+        let source = read_character_source(&path)?;
+        let Ok(character) = Character::from_json(&source) else {
+            continue;
+        };
+        characters.push(resolve_rules(character, rules)?);
+    }
+    Ok(characters)
 }
 
 fn load_character(path: &Path, rules: RulesContext<'_>) -> Result<ResolvedCharacter, AppError> {
+    let source = read_character_source(path)?;
+    let character = Character::from_json(&source).map_err(|error| {
+        AppError::new(
+            ErrorKind::Input,
+            format!("invalid character JSON {}: {error}", path.display()),
+        )
+    })?;
+    resolve_rules(character, rules)
+}
+
+fn read_character_source(path: &Path) -> Result<String, AppError> {
     if !path.is_file() {
         return Err(AppError::new(
             ErrorKind::Input,
@@ -576,19 +593,12 @@ fn load_character(path: &Path, rules: RulesContext<'_>) -> Result<ResolvedCharac
             ),
         ));
     }
-    let source = fs::read_to_string(path).map_err(|error| {
+    fs::read_to_string(path).map_err(|error| {
         AppError::new(
             ErrorKind::Persistence,
             format!("unable to read {}: {error}", path.display()),
         )
-    })?;
-    let character = Character::from_json(&source).map_err(|error| {
-        AppError::new(
-            ErrorKind::Input,
-            format!("invalid character JSON {}: {error}", path.display()),
-        )
-    })?;
-    resolve_rules(character, rules)
+    })
 }
 
 fn resolve_rules(
@@ -1029,6 +1039,12 @@ mod tests {
         )
         .expect("write character");
         std::fs::write(directory.join("notes.txt"), "not a character").expect("write note");
+        std::fs::write(
+            directory.join("package.json"),
+            r#"{"name":"other-project"}"#,
+        )
+        .expect("write unrelated JSON");
+        std::fs::write(directory.join("broken.json"), "{not json").expect("write malformed JSON");
 
         let characters =
             collection_characters(&directory, RulesContext::srd()).expect("load collection");

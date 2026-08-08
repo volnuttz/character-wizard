@@ -23,8 +23,8 @@ code=$(character-wizard export legolas)
 character-wizard import "$code"
 ```
 
-Import defaults to `characters/<character-name>.json`. Select a different
-collection or exact destination when needed:
+Import defaults to `./<character-name>.json` in the current directory. Select a
+different collection or exact destination when needed:
 
 ```console
 character-wizard import <code> --directory ./party

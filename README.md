@@ -101,7 +101,8 @@ character-wizard create --from-json legolas.json --force
 That command still uses the name stored in the JSON for the default output
 names. Pass `--json` or `--output` to override either one.
 
-The optional `./characters` collection supports bare character names:
+The current directory is the default character collection, so bare character
+names resolve to JSON files beside the command invocation:
 
 ```console
 character-wizard list
@@ -109,6 +110,10 @@ character-wizard show legolas
 character-wizard edit legolas
 character-wizard render legolas
 ```
+
+Use `--directory ./party` to select a different collection. `list` ignores JSON
+files that are not valid character records, so it can safely run in a directory
+that also contains unrelated JSON files.
 
 Export a collection character as a compact copy-and-paste code and import it
 back into canonical JSON:

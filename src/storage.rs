@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-const DEFAULT_CHARACTER_DIRECTORY: &str = "characters";
+const DEFAULT_CHARACTER_DIRECTORY: &str = ".";
 static NEXT_TEMPORARY: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone)]
@@ -139,6 +139,16 @@ fn replace(source: &Path, destination: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{CharacterRepository, write_atomic};
+
+    #[test]
+    fn default_collection_is_the_current_directory() {
+        let repository = CharacterRepository::new(None);
+        assert_eq!(repository.directory(), std::path::Path::new("."));
+        assert_eq!(
+            repository.resolve(std::path::Path::new("Legolas")),
+            std::path::PathBuf::from("./Legolas.json")
+        );
+    }
 
     #[test]
     fn collection_resolution_and_atomic_replacement_are_stable() {

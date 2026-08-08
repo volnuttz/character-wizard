@@ -5,6 +5,13 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+### Changed
+
+- The default character collection is now the current working directory instead
+  of `./characters`; `--directory` continues to select a different collection.
+- `list` now ignores unrelated or malformed JSON files instead of failing the
+  entire collection scan.
+
 ## [0.6.0] - 2026-08-08
 
 ### Changed
