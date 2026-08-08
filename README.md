@@ -61,7 +61,7 @@ The official fillable character-sheet PDF is found in this order:
 
 If none is available, the program downloads and validates the supported official
 sheet, then caches it. For offline use, download the sheet yourself from the
-[official character-sheet downloads](https://www.dndbeyond.com/resources/1779-d-d-character-sheets)
+[official character sheet](https://media.dndbeyond.com/compendium-images/free-rules/ph/character-sheet.pdf)
 and pass its path explicitly:
 
 ```console
