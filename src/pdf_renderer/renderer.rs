@@ -55,7 +55,7 @@ pub fn render_character(
     let sheet = character.sheet();
     let mut values = BTreeMap::from([
         ("Text1".to_owned(), character.name.clone()),
-        ("Text6".to_owned(), character.background.to_string()),
+        ("Text6".to_owned(), character.background_name().to_owned()),
         ("Text7".to_owned(), character.character_class.to_string()),
         ("Text8".to_owned(), character.species_name().to_owned()),
         ("Text9".to_owned(), String::new()),
@@ -302,7 +302,7 @@ mod tests {
 
     use super::render_character;
     use crate::{
-        character_wizard_domain::{Character, PackSpecies},
+        character_wizard_domain::{Character, PackBackground, PackEquipment, PackSpecies},
         pdf_renderer::pdf_renderer_field_writer::read_field_value,
     };
 
@@ -333,6 +333,60 @@ mod tests {
         .expect("render character");
         let value = read_field_value(&output, "Text8").expect("read species field");
         assert_eq!(value.as_str().expect("text value"), b"Moonfolk");
+        let document = lopdf::Document::load(&output).expect("reopen output");
+        assert_eq!(document.get_pages().len(), 2);
+        assert!(document.catalog().expect("catalog").has(b"AcroForm"));
+        std::fs::remove_file(output).expect("remove proof PDF");
+    }
+
+    #[test]
+    fn pack_background_summary_is_stored_in_existing_fields() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let mut character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        character.background = "lunar-scout".parse().expect("background id");
+        character.class_equipment_option = "Gold".to_owned();
+        character.background_equipment_option = "A".to_owned();
+        character.resolved_pack_background = Some(
+            serde_json::from_str::<PackBackground>(
+                r#"{"id":"lunar-scout","name":"Lunar Scout","abilities":["dexterity","wisdom","charisma"],"skills":["Perception","Survival"],"feat":"Alert","tool":"Navigator's Tools","equipment":[{"equipment_id":"moonblade"},{"equipment_id":"moonweave"},{"equipment_id":"moonward"}],"equipment_gold":12,"gold_alternative":50}"#,
+            )
+            .expect("pack background"),
+        );
+        character.resolved_pack_equipment = serde_json::from_str::<Vec<PackEquipment>>(
+            r#"[{"id":"moonblade","name":"Moonblade","kind":{"type":"weapon","category":"Simple","kind":"Melee","properties":["Finesse","Light"],"mastery":"Vex","damage":"1d8","damage_type":"Radiant","normal_range":5}},{"id":"moonweave","name":"Moonweave Armor","kind":{"type":"armor","category":"Light","base_ac":13}},{"id":"moonward","name":"Moonward","kind":{"type":"shield","armor_class_bonus":3}}]"#,
+        )
+        .expect("pack equipment");
+        let output = std::env::temp_dir().join(format!(
+            "character-wizard-pack-background-render-{}-{}.pdf",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        render_character(
+            &character,
+            std::path::Path::new("assets/character-sheet.pdf"),
+            &output,
+        )
+        .expect("render character");
+        for (field, expected) in [
+            ("Text6", "Lunar Scout"),
+            ("Text58", "Alert: Initiative Proficiency; Initiative Swap"),
+            ("Text60", "Navigator's Tools"),
+            ("Text13", "19"),
+            ("Text30", "Moonblade"),
+            ("Text31", "+5"),
+            ("Text32", "1d8+3 Radiant"),
+        ] {
+            let value = read_field_value(&output, field).expect("read background field");
+            assert_eq!(value.as_str().expect("text value"), expected.as_bytes());
+        }
+        let inventory = read_field_value(&output, "Text99").expect("read inventory field");
+        let inventory =
+            std::str::from_utf8(inventory.as_str().expect("text value")).expect("UTF-8 inventory");
+        assert!(inventory.contains("Moonblade"));
+        assert!(inventory.contains("Moonweave Armor"));
+        assert!(inventory.contains("Moonward"));
         let document = lopdf::Document::load(&output).expect("reopen output");
         assert_eq!(document.get_pages().len(), 2);
         assert!(document.catalog().expect("catalog").has(b"AcroForm"));

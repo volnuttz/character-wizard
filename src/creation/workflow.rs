@@ -1,10 +1,11 @@
 //! Interactive creation workflow and completion.
 
-use std::{cell::Cell, collections::BTreeSet, fs, path::Path};
+use std::{cell::Cell, collections::BTreeSet, fmt::Write as _, fs, path::Path};
 
 use crate::character_wizard_domain::{
     AbilityGenerationMethod, AbilityScoreGeneration, AbilityScores, BackgroundAbilityAdjustment,
-    Character, ClassChoices, DataPackReference, MagicInitiateChoice, PackSpecies,
+    Character, ClassChoices, DataPackReference, MagicInitiateChoice, PackBackground, PackEquipment,
+    PackSpecies,
 };
 use rand::RngExt as _;
 use serde::{Deserialize, Serialize};
@@ -183,6 +184,8 @@ impl CharacterDraft {
             data_pack: self.data_pack,
             character_class: origin.character_class.parse()?,
             background: origin.background.parse()?,
+            resolved_pack_background: None,
+            resolved_pack_equipment: Vec::new(),
             species: origin.species.parse()?,
             resolved_pack_species: None,
             size: origin.size.parse()?,
@@ -244,12 +247,16 @@ pub fn run_interactive_with_pack(
     draft_path: impl AsRef<Path>,
     data_pack: Option<DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     run_interactive_with_catalog(
         draft_path.as_ref(),
         &TerminalPromptPort,
         data_pack,
         pack_species,
+        pack_backgrounds,
+        pack_equipment,
     )
 }
 
@@ -263,7 +270,7 @@ pub fn run_interactive_with(
     draft_path: impl AsRef<Path>,
     prompts: &dyn PromptPort,
 ) -> Result<Character> {
-    run_interactive_with_catalog(draft_path.as_ref(), prompts, None, &[])
+    run_interactive_with_catalog(draft_path.as_ref(), prompts, None, &[], &[], &[])
 }
 
 #[allow(clippy::too_many_lines)]
@@ -272,6 +279,8 @@ fn run_interactive_with_catalog(
     prompts: &dyn PromptPort,
     data_pack: Option<DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     let mut draft = if draft_path.is_file() {
         CharacterDraft::load(draft_path)?
@@ -285,7 +294,7 @@ fn run_interactive_with_catalog(
     loop {
         if draft.origin.is_none() {
             print_progress(1, "Origin");
-            match collect_origin(prompts, pack_species) {
+            match collect_origin(prompts, pack_species, pack_backgrounds) {
                 Ok(origin) => {
                     draft.origin = Some(origin);
                     draft.save(draft_path)?;
@@ -303,7 +312,7 @@ fn run_interactive_with_catalog(
                 .as_ref()
                 .ok_or_else(|| "origin checkpoint missing".to_owned())?;
             print_progress(2, "Abilities");
-            match collect_abilities(origin, prompts) {
+            match collect_abilities(origin, prompts, pack_backgrounds) {
                 Ok(abilities) => {
                     draft.abilities = Some(abilities);
                     draft.save(draft_path)?;
@@ -322,7 +331,7 @@ fn run_interactive_with_catalog(
                 .as_ref()
                 .ok_or_else(|| "origin checkpoint missing".to_owned())?;
             print_progress(3, "Build");
-            match collect_build(origin, prompts) {
+            match collect_build(origin, prompts, pack_backgrounds, pack_equipment) {
                 Ok(build) => {
                     draft.build = Some(build);
                     draft.save(draft_path)?;
@@ -351,6 +360,8 @@ fn run_interactive_with_catalog(
             }
         }
         let mut character = draft.clone().into_character()?;
+        character.resolve_pack_background(pack_backgrounds)?;
+        character.resolve_pack_equipment(pack_equipment)?;
         character.resolve_pack_species(pack_species)?;
         print_progress(5, "Review");
         print_character_review(&character);
@@ -412,8 +423,16 @@ pub fn run_edit_interactive(character: &Character) -> Result<Option<Character>> 
 pub fn run_edit_interactive_with_pack(
     character: &Character,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Option<Character>> {
-    run_edit_interactive_with_catalog(character, &TerminalPromptPort, pack_species)
+    run_edit_interactive_with_catalog(
+        character,
+        &TerminalPromptPort,
+        pack_species,
+        pack_backgrounds,
+        pack_equipment,
+    )
 }
 
 /// Edit a completed character with a caller-supplied prompt adapter.
@@ -428,7 +447,7 @@ pub fn run_edit_interactive_with(
     character: &Character,
     prompts: &dyn PromptPort,
 ) -> Result<Option<Character>> {
-    run_edit_interactive_with_catalog(character, prompts, &[])
+    run_edit_interactive_with_catalog(character, prompts, &[], &[], &[])
 }
 
 #[allow(clippy::too_many_lines)]
@@ -436,12 +455,14 @@ fn run_edit_interactive_with_catalog(
     character: &Character,
     prompts: &dyn PromptPort,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Option<Character>> {
     let mut draft = CharacterDraft::from_character(character);
     loop {
         if draft.origin.is_none() {
             print_progress(1, "Identity");
-            match collect_origin(prompts, pack_species) {
+            match collect_origin(prompts, pack_species, pack_backgrounds) {
                 Ok(origin) => draft.origin = Some(origin),
                 Err(WizardError::Back) => continue,
                 Err(error) => return Err(error),
@@ -453,7 +474,7 @@ fn run_edit_interactive_with_catalog(
                 .as_ref()
                 .ok_or_else(|| "origin choices missing".to_owned())?;
             print_progress(2, "Abilities");
-            match collect_abilities(origin, prompts) {
+            match collect_abilities(origin, prompts, pack_backgrounds) {
                 Ok(abilities) => draft.abilities = Some(abilities),
                 Err(WizardError::Back) => continue,
                 Err(error) => return Err(error),
@@ -465,7 +486,7 @@ fn run_edit_interactive_with_catalog(
                 .as_ref()
                 .ok_or_else(|| "origin choices missing".to_owned())?;
             print_progress(3, "Build");
-            match collect_build(origin, prompts) {
+            match collect_build(origin, prompts, pack_backgrounds, pack_equipment) {
                 Ok(build) => draft.build = Some(build),
                 Err(WizardError::Back) => continue,
                 Err(error) => return Err(error),
@@ -480,6 +501,8 @@ fn run_edit_interactive_with_catalog(
             }
         }
         let mut edited = draft.clone().into_character()?;
+        edited.resolve_pack_background(pack_backgrounds)?;
+        edited.resolve_pack_equipment(pack_equipment)?;
         edited.resolve_pack_species(pack_species)?;
         print_progress(5, "Review");
         print_character_review(&edited);
@@ -538,16 +561,22 @@ pub fn generate_random_character(
 /// Returns an error for an unavailable constraint or invalid generated choices.
 pub fn generate_random_character_with_pack(
     character_class: Option<&str>,
+    background: Option<&str>,
     species: Option<&str>,
     data_pack: Option<DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     generate_random_character_with_catalog(
         character_class,
+        background,
         species,
         rand::rng().random(),
         data_pack,
         pack_species,
+        pack_backgrounds,
+        pack_equipment,
     )
 }
 
@@ -568,17 +597,21 @@ pub fn run_quick_interactive() -> Result<Character> {
 pub fn run_quick_interactive_with_pack(
     data_pack: Option<&DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     run_quick_interactive_with_catalog(
         &TerminalPromptPort,
         rand::rng().random(),
         data_pack,
         pack_species,
+        pack_backgrounds,
+        pack_equipment,
     )
 }
 
 fn run_quick_interactive_with_seed(prompts: &dyn PromptPort, seed: u64) -> Result<Character> {
-    run_quick_interactive_with_catalog(prompts, seed, None, &[])
+    run_quick_interactive_with_catalog(prompts, seed, None, &[], &[], &[])
 }
 
 fn run_quick_interactive_with_catalog(
@@ -586,14 +619,19 @@ fn run_quick_interactive_with_catalog(
     mut seed: u64,
     data_pack: Option<&DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     loop {
         let character = generate_random_character_with_catalog(
             None,
             None,
+            None,
             seed,
             data_pack.cloned(),
             pack_species,
+            pack_backgrounds,
+            pack_equipment,
         )?;
         print_character_review(&character);
         let action = prompts.choose("Quick action", &["Accept", "Reroll", "Edit"])?;
@@ -601,9 +639,13 @@ fn run_quick_interactive_with_catalog(
             "Accept" => return Ok(character),
             "Reroll" => seed = seed.wrapping_add(1),
             "Edit" => {
-                if let Some(edited) =
-                    run_edit_interactive_with_catalog(&character, prompts, pack_species)?
-                {
+                if let Some(edited) = run_edit_interactive_with_catalog(
+                    &character,
+                    prompts,
+                    pack_species,
+                    pack_backgrounds,
+                    pack_equipment,
+                )? {
                     return Ok(edited);
                 }
             }
@@ -617,15 +659,28 @@ fn generate_random_character_with_seed(
     species: Option<&str>,
     seed: u64,
 ) -> Result<Character> {
-    generate_random_character_with_catalog(character_class, species, seed, None, &[])
+    generate_random_character_with_catalog(
+        character_class,
+        None,
+        species,
+        seed,
+        None,
+        &[],
+        &[],
+        &[],
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_random_character_with_catalog(
     character_class: Option<&str>,
+    background: Option<&str>,
     species: Option<&str>,
     seed: u64,
     data_pack: Option<DataPackReference>,
     pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
 ) -> Result<Character> {
     let species_choice = species.map(|value| {
         pack_species
@@ -635,10 +690,18 @@ fn generate_random_character_with_catalog(
             })
             .map_or(value, |rule| rule.name.as_str())
     });
-    let prompts = RandomPromptPort::new(seed, character_class, species_choice);
-    let origin = collect_origin(&prompts, pack_species)?;
-    let abilities = collect_abilities(&origin, &prompts)?;
-    let build = collect_build(&origin, &prompts)?;
+    let background_choice = background.map(|value| {
+        pack_backgrounds
+            .iter()
+            .find(|rule| {
+                rule.id.eq_ignore_ascii_case(value) || rule.name.eq_ignore_ascii_case(value)
+            })
+            .map_or(value, |rule| rule.name.as_str())
+    });
+    let prompts = RandomPromptPort::new(seed, character_class, background_choice, species_choice);
+    let origin = collect_origin(&prompts, pack_species, pack_backgrounds)?;
+    let abilities = collect_abilities(&origin, &prompts, pack_backgrounds)?;
+    let build = collect_build(&origin, &prompts, pack_backgrounds, pack_equipment)?;
     let details = collect_details(&prompts)?;
     let mut character = CharacterDraft {
         data_pack,
@@ -648,6 +711,8 @@ fn generate_random_character_with_catalog(
         details: Some(details),
     }
     .into_character()?;
+    character.resolve_pack_background(pack_backgrounds)?;
+    character.resolve_pack_equipment(pack_equipment)?;
     character.resolve_pack_species(pack_species)?;
     Ok(character)
 }
@@ -655,14 +720,21 @@ fn generate_random_character_with_catalog(
 struct RandomPromptPort {
     state: Cell<u64>,
     character_class: Option<String>,
+    background: Option<String>,
     species: Option<String>,
 }
 
 impl RandomPromptPort {
-    fn new(seed: u64, character_class: Option<&str>, species: Option<&str>) -> Self {
+    fn new(
+        seed: u64,
+        character_class: Option<&str>,
+        background: Option<&str>,
+        species: Option<&str>,
+    ) -> Self {
         Self {
             state: Cell::new(seed),
             character_class: character_class.map(str::to_owned),
+            background: background.map(str::to_owned),
             species: species.map(str::to_owned),
         }
     }
@@ -708,6 +780,7 @@ impl PromptPort for RandomPromptPort {
     fn choose(&self, label: &str, choices: &[&str]) -> Result<String> {
         match label {
             "Class" => self.constrained_choice(label, choices, self.character_class.as_ref()),
+            "Background" => self.constrained_choice(label, choices, self.background.as_ref()),
             "Species" => self.constrained_choice(label, choices, self.species.as_ref()),
             "Generate ability scores" => Ok("Use the class suggested array".to_owned()),
             _ => Ok(choices[self.next_index(choices.len())].to_owned()),
@@ -741,14 +814,37 @@ fn print_progress(stage: usize, label: &str) {
 }
 
 #[allow(clippy::too_many_lines)]
-fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Result<OriginDraft> {
+fn collect_origin(
+    prompts: &dyn PromptPort,
+    pack_species: &[PackSpecies],
+    pack_backgrounds: &[PackBackground],
+) -> Result<OriginDraft> {
     let prompt = |label: &str| prompts.prompt(label);
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
     let choose_set =
         |label: &str, choices: &[&str], count| prompts.choose_set(label, choices, count);
     let name = prompt("Character name")?;
     let character_class = choose("Class", &character_wizard_srd_data::CLASS_NAMES)?;
-    let background = choose("Background", &character_wizard_srd_data::BACKGROUND_NAMES)?;
+    let mut background_labels = character_wizard_srd_data::BACKGROUND_NAMES.to_vec();
+    background_labels.extend(pack_backgrounds.iter().map(|rule| rule.name.as_str()));
+    let background_label = choose("Background", &background_labels)?;
+    let custom_background = pack_backgrounds
+        .iter()
+        .find(|rule| rule.name == background_label);
+    let background =
+        custom_background.map_or_else(|| background_label.clone(), |rule| rule.id.clone());
+    let background_skills: Vec<&str> = custom_background.map_or_else(
+        || {
+            character_wizard_srd_data::background_rule(&background)
+                .map_or(&[][..], |rule| rule.skills)
+                .to_vec()
+        },
+        |rule| rule.skills.iter().map(String::as_str).collect(),
+    );
+    let background_feat = custom_background.map_or_else(
+        || character_wizard_srd_data::background_rule(&background).map_or("", |rule| rule.feat),
+        |rule| rule.feat.as_str(),
+    );
     let mut species_labels = character_wizard_srd_data::SPECIES_NAMES.to_vec();
     species_labels.extend(pack_species.iter().map(|rule| rule.name.as_str()));
     let species_label = choose("Species", &species_labels)?;
@@ -809,8 +905,6 @@ fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Res
                 "Spellcasting ability",
                 &character_wizard_srd_data::SPELLCASTING_ABILITIES,
             )?);
-            let background_skills = character_wizard_srd_data::background_rule(&background)
-                .map_or(&[][..], |rule| rule.skills);
             let available: Vec<&str> = ["Insight", "Perception", "Survival"]
                 .into_iter()
                 .filter(|skill| !background_skills.contains(skill))
@@ -839,16 +933,12 @@ fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Res
             )?);
         }
         "Human" => {
-            let background_skills = character_wizard_srd_data::background_rule(&background)
-                .map_or(&[][..], |rule| rule.skills);
             let available: Vec<&str> = character_wizard_srd_data::SKILLS
                 .iter()
                 .copied()
                 .filter(|skill| !background_skills.contains(skill))
                 .collect();
             origin.human_skill = Some(choose("Additional skill", &available)?);
-            let background_feat = character_wizard_srd_data::background_rule(&background)
-                .map_or("", |rule| rule.feat);
             let feats: Vec<&str> = character_wizard_srd_data::ORIGIN_FEATS
                 .iter()
                 .copied()
@@ -871,9 +961,13 @@ fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Res
         _ => {}
     }
     let mut magic_lists = Vec::new();
-    if let Some(list) = character_wizard_srd_data::background_rule(&background)
-        .and_then(|rule| rule.magic_initiate_list)
-    {
+    if let Some(list) = custom_background.map_or_else(
+        || {
+            character_wizard_srd_data::background_rule(&background)
+                .and_then(|rule| rule.magic_initiate_list)
+        },
+        |rule| rule.magic_initiate_list.as_deref(),
+    ) {
         magic_lists.push(list.to_owned());
     }
     if origin.human_origin_feat.as_deref() == Some("Magic Initiate") {
@@ -888,9 +982,9 @@ fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Res
             .magic_initiate_choices
             .push(collect_magic_initiate(&list, prompts)?);
     }
-    if origin.human_origin_feat.as_deref() == Some("Skilled") {
-        let background_rule = character_wizard_srd_data::background_rule(&background)
-            .ok_or_else(|| "unknown background".to_owned())?;
+    let skilled_count = usize::from(background_feat == "Skilled")
+        + usize::from(origin.human_origin_feat.as_deref() == Some("Skilled"));
+    if skilled_count > 0 {
         let unavailable = [
             origin.human_skill.as_deref(),
             origin.elf_keen_senses_skill.as_deref(),
@@ -898,17 +992,26 @@ fn collect_origin(prompts: &dyn PromptPort, pack_species: &[PackSpecies]) -> Res
         let choices: Vec<&str> = character_wizard_srd_data::SKILLS
             .iter()
             .copied()
-            .filter(|skill| !background_rule.skills.contains(skill))
+            .filter(|skill| !background_skills.contains(skill))
             .filter(|skill| !unavailable.contains(&Some(*skill)))
             .chain(
                 character_wizard_srd_data::ARTISAN_TOOLS
                     .iter()
                     .chain(character_wizard_srd_data::MUSICAL_INSTRUMENTS.iter())
                     .copied()
-                    .filter(|tool| *tool != background_rule.tool),
+                    .filter(|tool| {
+                        custom_background.map_or_else(
+                            || {
+                                character_wizard_srd_data::background_rule(&background)
+                                    .is_none_or(|rule| *tool != rule.tool)
+                            },
+                            |rule| *tool != rule.tool,
+                        )
+                    }),
             )
             .collect();
-        origin.skilled_proficiencies = choose_set("Skilled proficiencies", &choices, 3)?;
+        origin.skilled_proficiencies =
+            choose_set("Skilled proficiencies", &choices, skilled_count * 3)?;
     }
     Ok(origin)
 }
@@ -928,7 +1031,11 @@ fn collect_magic_initiate(list: &str, prompts: &dyn PromptPort) -> Result<MagicI
     })
 }
 
-fn collect_abilities(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<AbilityScores> {
+fn collect_abilities(
+    origin: &OriginDraft,
+    prompts: &dyn PromptPort,
+    pack_backgrounds: &[PackBackground],
+) -> Result<AbilityScores> {
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
     let method_label = choose(
         "Generate ability scores",
@@ -976,7 +1083,7 @@ fn collect_abilities(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<A
         character_class: Some(origin.character_class.clone()),
     }
     .validate()?;
-    apply_background_increases(&scores, &origin.background, prompts)
+    apply_background_increases(&scores, &origin.background, prompts, pack_backgrounds)
 }
 
 const ABILITIES: [&str; 6] = [
@@ -1086,18 +1193,27 @@ fn apply_background_increases(
     scores: &AbilityScores,
     background: &str,
     prompts: &dyn PromptPort,
+    pack_backgrounds: &[PackBackground],
 ) -> Result<AbilityScores> {
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
-    let rule = character_wizard_srd_data::background_rule(background)
-        .ok_or_else(|| "unknown background".to_owned())?;
-    let plus_one: Vec<&str> = rule
-        .abilities
+    let pack_rule = pack_backgrounds.iter().find(|rule| rule.id == background);
+    let abilities: Vec<&str> = pack_rule.map_or_else(
+        || {
+            character_wizard_srd_data::background_rule(background)
+                .map_or(&[][..], |rule| rule.abilities)
+                .to_vec()
+        },
+        |rule| rule.abilities.iter().map(String::as_str).collect(),
+    );
+    if abilities.is_empty() {
+        return Err("unknown background".to_owned().into());
+    }
+    let plus_one: Vec<&str> = abilities
         .iter()
         .copied()
         .filter(|ability| scores.score(ability) <= 19)
         .collect();
-    let plus_two: Vec<&str> = rule
-        .abilities
+    let plus_two: Vec<&str> = abilities
         .iter()
         .copied()
         .filter(|ability| {
@@ -1108,7 +1224,7 @@ fn apply_background_increases(
     if !plus_two.is_empty() {
         methods.push("+2 to one and +1 to another");
     }
-    if plus_one.len() == rule.abilities.len() {
+    if plus_one.len() == abilities.len() {
         methods.push("+1 to all three");
     }
     if methods.is_empty() {
@@ -1128,7 +1244,7 @@ fn apply_background_increases(
             .into_iter()
             .collect()
     } else {
-        rule.abilities
+        abilities
             .iter()
             .map(|ability| ((*ability).to_owned(), 1))
             .collect()
@@ -1138,7 +1254,7 @@ fn apply_background_increases(
         base_scores: scores.clone(),
         increases,
     }
-    .adjusted_scores()
+    .adjusted_scores_for(&abilities)
     .map_err(Into::into)
 }
 
@@ -1245,18 +1361,33 @@ pub(crate) fn choice_description(choice: &str) -> Option<String> {
 }
 
 #[allow(clippy::too_many_lines)]
-fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<BuildDraft> {
+fn collect_build(
+    origin: &OriginDraft,
+    prompts: &dyn PromptPort,
+    pack_backgrounds: &[PackBackground],
+    pack_equipment: &[PackEquipment],
+) -> Result<BuildDraft> {
     let choose = |label: &str, choices: &[&str]| prompts.choose(label, choices);
     let choose_set =
         |label: &str, choices: &[&str], count| prompts.choose_set(label, choices, count);
     let rule = character_wizard_srd_data::class_rule(&origin.character_class)
         .ok_or_else(|| "unknown class".to_owned())?;
-    let background = character_wizard_srd_data::background_rule(&origin.background)
-        .ok_or_else(|| "unknown background".to_owned())?;
-    let unavailable: BTreeSet<&str> = background
-        .skills
+    let pack_background = pack_backgrounds
         .iter()
-        .copied()
+        .find(|rule| rule.id == origin.background);
+    let background_skills: Vec<&str> = pack_background.map_or_else(
+        || {
+            character_wizard_srd_data::background_rule(&origin.background)
+                .map_or(&[][..], |rule| rule.skills)
+                .to_vec()
+        },
+        |rule| rule.skills.iter().map(String::as_str).collect(),
+    );
+    if background_skills.is_empty() {
+        return Err("unknown background".to_owned().into());
+    }
+    let unavailable: BTreeSet<&str> = background_skills
+        .into_iter()
         .chain(origin.human_skill.as_deref())
         .chain(origin.elf_keen_senses_skill.as_deref())
         .chain(
@@ -1413,7 +1544,12 @@ fn collect_build(origin: &OriginDraft, prompts: &dyn PromptPort) -> Result<Build
         class_skills,
         class_choices: choices,
         class_equipment_option,
-        background_equipment_option: choose_background_equipment(prompts, &origin.background)?,
+        background_equipment_option: choose_background_equipment(
+            prompts,
+            &origin.background,
+            pack_background,
+            pack_equipment,
+        )?,
         bard_starting_instrument,
         alignment: choose("Alignment", &character_wizard_srd_data::ALIGNMENTS)?,
     })
@@ -1428,9 +1564,14 @@ fn choose_class_equipment(
     choose_equipment_option(prompts, "Class equipment", options, &labels)
 }
 
-fn choose_background_equipment(prompts: &dyn PromptPort, background: &str) -> Result<String> {
+fn choose_background_equipment(
+    prompts: &dyn PromptPort,
+    background: &str,
+    pack_background: Option<&PackBackground>,
+    pack_equipment: &[PackEquipment],
+) -> Result<String> {
     let options = ["A", "Gold"];
-    let labels = background_equipment_labels(background);
+    let labels = background_equipment_labels(background, pack_background, pack_equipment);
     choose_equipment_option(prompts, "Background equipment", &options, &labels)
 }
 
@@ -1472,13 +1613,53 @@ fn class_equipment_labels(character_class: &str, options: &[&str]) -> Vec<String
         .collect()
 }
 
-fn background_equipment_labels(background: &str) -> Vec<String> {
+fn background_equipment_labels(
+    background: &str,
+    pack_background: Option<&PackBackground>,
+    pack_equipment: &[PackEquipment],
+) -> Vec<String> {
     let mut labels = Vec::new();
-    if let Some((items, gold)) = character_wizard_srd_data::background_equipment(background) {
+    if let Some(rule) = pack_background {
+        labels.push(format!(
+            "A — {}; plus {} GP",
+            pack_equipment_summary(&rule.equipment, pack_equipment),
+            rule.equipment_gold
+        ));
+    } else if let Some((items, gold)) = character_wizard_srd_data::background_equipment(background)
+    {
         labels.push(format!("A — {}; plus {gold} GP", equipment_summary(items)));
     }
-    labels.push("Gold — start with 50 GP and no background package".to_owned());
+    let gold = pack_background.map_or(50, |rule| rule.gold_alternative);
+    labels.push(format!(
+        "Gold — start with {gold} GP and no background package"
+    ));
     labels
+}
+
+fn pack_equipment_summary(
+    items: &[crate::character_wizard_domain::PackEquipmentGrant],
+    pack_equipment: &[PackEquipment],
+) -> String {
+    items
+        .iter()
+        .map(|item| {
+            let name = item.name.as_deref().or_else(|| {
+                item.equipment_id.as_deref().and_then(|id| {
+                    pack_equipment
+                        .iter()
+                        .find(|equipment| equipment.id == id)
+                        .map(|equipment| equipment.name.as_str())
+                })
+            });
+            let name = name.unwrap_or("Unknown equipment");
+            if item.quantity > 1 {
+                format!("{} x {name}", item.quantity)
+            } else {
+                name.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn equipment_summary(items: &[character_wizard_srd_data::EquipmentGrant]) -> String {
@@ -1526,10 +1707,23 @@ fn character_review_rows(character: &Character) -> Vec<(&'static str, String)> {
         .chain(character.class_choices.additional_language.iter().cloned())
         .collect::<Vec<_>>()
         .join(", ");
-    let equipment = format!(
-        "class {}, background {}",
-        character.class_equipment_option, character.background_equipment_option
-    );
+    let mut equipment = character
+        .inventory()
+        .into_iter()
+        .map(|item| {
+            if item.quantity > 1 {
+                format!("{} x {}", item.quantity, item.name)
+            } else {
+                item.name
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    if equipment.is_empty() {
+        equipment.push_str("No package items");
+    }
+    let gold = character.coins().gold;
+    write!(equipment, "; {gold} GP").expect("writing to String cannot fail");
     let mut rows = vec![
         ("Name", character.name.clone()),
         (
@@ -1541,7 +1735,7 @@ fn character_review_rows(character: &Character) -> Vec<(&'static str, String)> {
                 character.character_class
             ),
         ),
-        ("Background", character.background.to_string()),
+        ("Background", character.background_name().to_owned()),
         ("Alignment", character.alignment.clone()),
         ("Size", character.size.to_string()),
         ("Abilities", abilities),
@@ -1632,10 +1826,13 @@ mod tests {
     use super::{
         CharacterDraft, background_equipment_labels, character_review_rows, class_equipment_labels,
         collect_details, collect_origin, generate_random_character_with_catalog,
-        generate_random_character_with_seed, run_edit_interactive_with, run_interactive_with,
+        generate_random_character_with_seed, run_edit_interactive_with,
+        run_edit_interactive_with_catalog, run_interactive_with,
         run_quick_interactive_with_catalog, run_quick_interactive_with_seed,
     };
-    use crate::character_wizard_domain::{Character, DataPackReference, PackSpecies};
+    use crate::character_wizard_domain::{
+        Character, DataPackReference, PackBackground, PackEquipment, PackSpecies,
+    };
     use crate::creation::{PromptPort, Result, WizardError};
 
     struct ScriptedPrompts;
@@ -2026,7 +2223,7 @@ mod tests {
                 "Gold — start with 55 GP and no class package"
             ]
         );
-        let background = background_equipment_labels("Criminal");
+        let background = background_equipment_labels("Criminal", None, &[]);
         assert!(background[0].starts_with("A — 2 x Dagger, Thieves' Tools"));
         assert_eq!(
             background[1],
@@ -2170,7 +2367,7 @@ mod tests {
             r#"{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"traits":["Moonlit Step"]}"#,
         )
         .expect("pack species");
-        let origin = collect_origin(&FullRoguePrompts::with_species("Moonfolk"), &[rule])
+        let origin = collect_origin(&FullRoguePrompts::with_species("Moonfolk"), &[rule], &[])
             .expect("collect pack origin");
         assert_eq!(origin.species, "moonfolk");
         assert_eq!(origin.size, "Small");
@@ -2223,9 +2420,12 @@ mod tests {
                 generate_random_character_with_catalog(
                     None,
                     None,
+                    None,
                     *seed,
                     Some(reference.clone()),
                     std::slice::from_ref(&rule),
+                    &[],
+                    &[],
                 )
                 .is_ok_and(|character| character.species == "moonfolk")
             })
@@ -2238,9 +2438,174 @@ mod tests {
             seed,
             Some(&reference),
             std::slice::from_ref(&rule),
+            &[],
+            &[],
         )
         .expect("quick pack character");
         assert_eq!(character.species, "moonfolk");
         assert_eq!(character.speed(), 35);
+    }
+
+    #[test]
+    fn custom_background_is_constrained_resolved_and_editable() {
+        let rule: PackBackground = serde_json::from_str(
+            r#"{"id":"lunar-scout","name":"Lunar Scout","abilities":["dexterity","wisdom","charisma"],"skills":["Perception","Survival"],"feat":"Alert","tool":"Navigator's Tools","equipment":[{"equipment_id":"moonblade"},{"name":"Arrow","quantity":20}],"equipment_gold":12,"gold_alternative":50}"#,
+        )
+        .expect("pack background");
+        let equipment: PackEquipment = serde_json::from_str(
+            r#"{"id":"moonblade","name":"Moonblade","kind":{"type":"weapon","category":"Simple","kind":"Melee","properties":["Finesse","Light"],"mastery":"Vex","damage":"1d8","damage_type":"Radiant","normal_range":5}}"#,
+        )
+        .expect("pack equipment");
+        let reference = DataPackReference {
+            id: "moon-pack".to_owned(),
+            format_version: 1,
+            version: 1,
+        };
+        let character = generate_random_character_with_catalog(
+            Some("Fighter"),
+            Some("lunar-scout"),
+            Some("Dwarf"),
+            42,
+            Some(reference),
+            &[],
+            std::slice::from_ref(&rule),
+            std::slice::from_ref(&equipment),
+        )
+        .expect("generate custom background");
+        assert_eq!(character.background, "lunar-scout");
+        assert_eq!(character.background_name(), "Lunar Scout");
+        assert!(character.skills().contains("Perception"));
+        assert!(character.skills().contains("Survival"));
+        assert!(
+            character
+                .all_tool_proficiencies()
+                .contains(&"Navigator's Tools".to_owned())
+        );
+        let class_gold = crate::character_wizard_srd_data::class_equipment(
+            &character.character_class,
+            &character.class_equipment_option,
+        )
+        .map_or(0, |(_, gold)| gold);
+        assert_eq!(character.coins().gold, class_gold + 12);
+        assert!(
+            character
+                .inventory()
+                .iter()
+                .any(|item| item.name == "Moonblade")
+        );
+        assert_eq!(
+            character
+                .weapon_attacks()
+                .into_iter()
+                .find(|attack| attack.name == "Moonblade")
+                .expect("custom attack")
+                .damage_type,
+            "Radiant"
+        );
+        assert_eq!(character.abilities.strength, 15);
+        assert_eq!(character.abilities.constitution, 13);
+        assert_eq!(character.abilities.intelligence, 8);
+
+        let edited = run_edit_interactive_with_catalog(
+            &character,
+            &EditingPrompts { cancel: false },
+            &[],
+            std::slice::from_ref(&rule),
+            std::slice::from_ref(&equipment),
+        )
+        .expect("edit custom background")
+        .expect("save edit");
+        assert_eq!(edited, character);
+    }
+
+    #[test]
+    fn custom_background_origin_feat_subchoices_are_completed() {
+        for (index, (feat, magic_list)) in [
+            ("Alert", None),
+            ("Magic Initiate", Some("Wizard")),
+            ("Savage Attacker", None),
+            ("Skilled", None),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let rule: PackBackground = serde_json::from_value(serde_json::json!({
+                "id": format!("test-background-{index}"),
+                "name": format!("Test Background {index}"),
+                "abilities": ["dexterity", "wisdom", "charisma"],
+                "skills": ["Perception", "Survival"],
+                "feat": feat,
+                "tool": "Navigator's Tools",
+                "magic_initiate_list": magic_list,
+                "equipment": [{"name": "Shortbow"}],
+                "equipment_gold": 12,
+                "gold_alternative": 50
+            }))
+            .expect("pack background");
+            let character = generate_random_character_with_catalog(
+                Some("Fighter"),
+                Some(&rule.id),
+                Some("Dwarf"),
+                index as u64,
+                Some(DataPackReference {
+                    id: "test-pack".to_owned(),
+                    format_version: 1,
+                    version: 1,
+                }),
+                &[],
+                std::slice::from_ref(&rule),
+                &[],
+            )
+            .unwrap_or_else(|error| panic!("generate {feat}: {error}"));
+            assert_eq!(
+                character.magic_initiate_choices.len(),
+                usize::from(feat == "Magic Initiate")
+            );
+            assert_eq!(
+                character.skilled_proficiencies.len(),
+                3 * usize::from(feat == "Skilled")
+            );
+            assert!(!character.origin_feat_traits().is_empty());
+        }
+    }
+
+    #[test]
+    fn quick_creation_can_select_a_pack_background() {
+        let rule: PackBackground = serde_json::from_str(
+            r#"{"id":"lunar-scout","name":"Lunar Scout","abilities":["dexterity","wisdom","charisma"],"skills":["Perception","Survival"],"feat":"Alert","tool":"Navigator's Tools","equipment":[{"name":"Shortbow"}],"equipment_gold":12,"gold_alternative":50}"#,
+        )
+        .expect("pack background");
+        let reference = DataPackReference {
+            id: "moon-pack".to_owned(),
+            format_version: 1,
+            version: 1,
+        };
+        let seed = (0..1_000)
+            .find(|seed| {
+                generate_random_character_with_catalog(
+                    None,
+                    None,
+                    None,
+                    *seed,
+                    Some(reference.clone()),
+                    &[],
+                    std::slice::from_ref(&rule),
+                    &[],
+                )
+                .is_ok_and(|character| character.background == "lunar-scout")
+            })
+            .expect("seed selecting pack background");
+        let character = run_quick_interactive_with_catalog(
+            &QuickPrompts {
+                action_count: Cell::new(1),
+            },
+            seed,
+            Some(&reference),
+            &[],
+            std::slice::from_ref(&rule),
+            &[],
+        )
+        .expect("quick pack background");
+        assert_eq!(character.background_name(), "Lunar Scout");
     }
 }

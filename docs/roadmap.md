@@ -1,6 +1,6 @@
 # character-wizard project roadmap
 
-Last reviewed: 2026-08-07
+Last reviewed: 2026-08-08
 
 This document records the current project state, known gaps, planned phases, and
 completion criteria. Update it when a task is completed, reprioritized, added, or
@@ -526,8 +526,9 @@ built-in SRD catalog.
 
 - [~] Define a versioned, documented data-pack format for compatible species,
   backgrounds, equipment, spells, and other supported catalog records. The v1
-  manifest envelope and safe JSON-file validation are complete; per-family
-  record schemas remain to be integrated.
+  manifest envelope, safe JSON-file validation, and species, background, and
+  background-owned equipment schemas are complete; spells remain to be
+  integrated.
 - [x] Add `--data <directory>` to load and validate an explicit campaign pack.
 - [x] Keep built-in content strictly sourced from the supplied SRD and separate
   pack provenance from canonical character data.
@@ -536,28 +537,43 @@ built-in SRD catalog.
   canonical JSON, and PDF rendering.
 - [x] Add pack species to the quick-create catalog.
 - [~] Define conflicts, stable identifiers, validation, and PDF-rendering
-  behavior for pack-provided content. Add-only species IDs and their basic
-  rendering behavior are complete; other content families remain pending.
+  behavior for pack-provided content. Add-only species, background, and
+  background-owned equipment IDs and their rendering behavior are complete;
+  spells remain pending.
 
 #### Custom backgrounds
 
-- [ ] Define an add-only custom-background record with a stable identifier,
+- [x] Define an add-only custom-background record with a stable identifier,
   display name, three eligible abilities, two skill proficiencies, an Origin
   feat, a tool proficiency, and starting equipment or gold.
-- [ ] Add pack backgrounds to interactive creation, edit, constrained random,
+- [x] Add pack backgrounds to interactive creation, edit, constrained random,
   and quick-create catalogs while preserving stable pack references in
   canonical character JSON.
-- [ ] Apply pack-background ability increases and enforce the same score caps
+- [x] Apply pack-background ability increases and enforce the same score caps
   and allocation rules used by built-in backgrounds.
-- [ ] Integrate background skill exclusions, feat benefits and subchoices, tool
+- [x] Integrate background skill exclusions, feat benefits and subchoices, tool
   proficiency, and starting equipment or gold with creation and derived values.
-- [ ] Validate every pack-background choice and reject missing, conflicting, or
+- [x] Validate every pack-background choice and reject missing, conflicting, or
   out-of-pack references with actionable errors.
-- [ ] Resolve background display names and pack provenance when showing or
+- [x] Resolve background display names and pack provenance when showing or
   editing a character, and render background, proficiency, equipment, and feat
   summaries into the supported PDF fields.
-- [ ] Add deterministic creation, edit, random, quick-create, validation, and
+- [x] Add deterministic creation, edit, random, quick-create, validation, and
   PDF write/read-back tests for the complete custom-background vertical slice.
+
+#### Background-owned custom equipment
+
+- [x] Define add-only typed records for weapons, armor, shields, ammunition, and
+  gear, with stable IDs and SRD-compatible mechanics.
+- [x] Allow only custom-background packages to grant custom items by stable
+  `equipment_id`; keep class packages, shopping, and independent selection out
+  of scope.
+- [x] Validate record mechanics, collisions, duplicate IDs and names, and broken
+  background-to-equipment references.
+- [x] Resolve custom items into inventories, weapon attacks, AC, shield bonuses,
+  armor Strength penalties, review summaries, and existing PDF fields.
+- [x] Add an example pack plus deterministic validation, derived-value, and PDF
+  write/read-back coverage.
 
 Exit criteria:
 

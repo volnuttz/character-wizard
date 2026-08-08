@@ -48,9 +48,47 @@ srd_id!(ClassId {
     Rogue => "Rogue", Sorcerer => "Sorcerer", Warlock => "Warlock", Wizard => "Wizard",
 });
 
-srd_id!(BackgroundId {
-    Acolyte => "Acolyte", Criminal => "Criminal", Sage => "Sage", Soldier => "Soldier",
-});
+/// Built-in SRD background names and stable external pack background IDs.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct BackgroundId(String);
+
+impl BackgroundId {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for BackgroundId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for BackgroundId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for BackgroundId {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl FromStr for BackgroundId {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.trim().is_empty() {
+            Err("background identifier must not be empty".to_owned())
+        } else {
+            Ok(Self(value.to_owned()))
+        }
+    }
+}
 
 /// Built-in SRD species names and stable external pack species IDs.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

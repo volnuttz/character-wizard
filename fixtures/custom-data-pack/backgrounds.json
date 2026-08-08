@@ -1,0 +1,40 @@
+[
+  {
+    "id": "lunar-scout",
+    "name": "Lunar Scout",
+    "abilities": [
+      "dexterity",
+      "wisdom",
+      "charisma"
+    ],
+    "skills": [
+      "Perception",
+      "Survival"
+    ],
+    "feat": "Alert",
+    "tool": "Navigator's Tools",
+    "equipment": [
+      {
+        "equipment_id": "moonblade"
+      },
+      {
+        "name": "Arrow",
+        "quantity": 20
+      },
+      {
+        "name": "Navigator's Tools"
+      },
+      {
+        "name": "Traveler's Clothes"
+      },
+      {
+        "equipment_id": "moonweave"
+      },
+      {
+        "equipment_id": "moonward"
+      }
+    ],
+    "equipment_gold": 12,
+    "gold_alternative": 50
+  }
+]

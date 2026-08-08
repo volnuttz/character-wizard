@@ -1,0 +1,36 @@
+[
+  {
+    "id": "moonblade",
+    "name": "Moonblade",
+    "kind": {
+      "type": "weapon",
+      "category": "Simple",
+      "kind": "Melee",
+      "properties": [
+        "Finesse",
+        "Light"
+      ],
+      "mastery": "Vex",
+      "damage": "1d8",
+      "damage_type": "Radiant",
+      "normal_range": 5
+    }
+  },
+  {
+    "id": "moonweave",
+    "name": "Moonweave Armor",
+    "kind": {
+      "type": "armor",
+      "category": "Light",
+      "base_ac": 13
+    }
+  },
+  {
+    "id": "moonward",
+    "name": "Moonward",
+    "kind": {
+      "type": "shield",
+      "armor_class_bonus": 3
+    }
+  }
+]

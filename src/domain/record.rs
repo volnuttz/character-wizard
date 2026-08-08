@@ -158,10 +158,19 @@ impl BackgroundAbilityAdjustment {
     pub fn adjusted_scores(&self) -> Result<AbilityScores, String> {
         let rule = srd::background_rule(&self.background)
             .ok_or_else(|| format!("unknown SRD background: {}", self.background))?;
+        self.adjusted_scores_for(rule.abilities)
+    }
+
+    /// Validate and apply an adjustment using an already resolved background rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid increases or scores above 20.
+    pub fn adjusted_scores_for(&self, abilities: &[&str]) -> Result<AbilityScores, String> {
         if self
             .increases
             .keys()
-            .any(|ability| !rule.abilities.contains(&ability.as_str()))
+            .any(|ability| !abilities.contains(&ability.as_str()))
         {
             return Err(
                 "background increases contain an ability not granted by the background".to_owned(),
@@ -229,6 +238,8 @@ pub struct EquipmentItem {
     pub quantity: u16,
     pub category: String,
     pub weapon: Option<String>,
+    #[serde(default)]
+    pub equipment_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -336,6 +347,10 @@ pub struct Character {
     pub data_pack: Option<DataPackReference>,
     pub character_class: ClassId,
     pub background: BackgroundId,
+    #[serde(skip)]
+    pub resolved_pack_background: Option<PackBackground>,
+    #[serde(skip)]
+    pub resolved_pack_equipment: Vec<PackEquipment>,
     pub species: SpeciesId,
     #[serde(skip)]
     pub resolved_pack_species: Option<PackSpecies>,
@@ -413,6 +428,87 @@ pub struct PackSpecies {
     pub darkvision_range: Option<u8>,
     #[serde(default)]
     pub traits: Vec<String>,
+}
+
+/// Runtime-resolved mechanics for an external pack background.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackBackground {
+    pub id: String,
+    pub name: String,
+    pub abilities: Vec<String>,
+    pub skills: Vec<String>,
+    pub feat: String,
+    pub tool: String,
+    #[serde(default)]
+    pub magic_initiate_list: Option<String>,
+    pub equipment: Vec<PackEquipmentGrant>,
+    #[serde(default)]
+    pub equipment_gold: u16,
+    #[serde(default = "default_background_gold_alternative")]
+    pub gold_alternative: u16,
+}
+
+/// A named starting-equipment grant supplied by a pack background.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackEquipmentGrant {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub equipment_id: Option<String>,
+    #[serde(default = "default_equipment_quantity")]
+    pub quantity: u16,
+}
+
+/// A typed custom item that can be granted by a background in the same pack.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackEquipment {
+    pub id: String,
+    pub name: String,
+    pub kind: PackEquipmentKind,
+}
+
+/// Mechanics supported for background-owned custom equipment.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PackEquipmentKind {
+    Gear,
+    Ammunition,
+    Shield {
+        armor_class_bonus: i16,
+    },
+    Armor {
+        category: String,
+        base_ac: i16,
+        #[serde(default)]
+        dexterity_cap: Option<i16>,
+        #[serde(default)]
+        strength_requirement: Option<u8>,
+    },
+    Weapon {
+        category: String,
+        kind: String,
+        #[serde(default)]
+        properties: Vec<String>,
+        mastery: String,
+        damage: String,
+        damage_type: String,
+        normal_range: u16,
+        #[serde(default)]
+        long_range: Option<u16>,
+        #[serde(default)]
+        versatile_damage: Option<String>,
+    },
+}
+
+const fn default_equipment_quantity() -> u16 {
+    1
+}
+
+const fn default_background_gold_alternative() -> u16 {
+    50
 }
 
 fn default_equipment_option() -> String {

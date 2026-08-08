@@ -5,6 +5,19 @@ All notable changes to character-wizard are documented here. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- Campaign data packs can define custom backgrounds with stable IDs, ability
+  increases, skills, Origin feats and subchoices, tool proficiencies, starting
+  equipment, and gold alternatives.
+- Custom backgrounds are available in interactive creation, editing, quick
+  creation, and constrained random generation through `random --background`.
+- Custom-background mechanics are validated on exact pack resolution and are
+  included in character summaries, derived values, inventories, and PDFs.
+- Custom backgrounds can grant typed custom weapons, armor, shields,
+  ammunition, and gear by stable equipment ID; their supported mechanics flow
+  into attacks, AC, speed, inventory summaries, and PDFs.
+
 ## [0.5.1] - 2026-08-06
 
 ### Changed

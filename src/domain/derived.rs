@@ -5,17 +5,166 @@ use std::collections::BTreeSet;
 use crate::character_wizard_srd_data as srd;
 
 use super::record::{
-    Character, ClassResource, CoinPurse, EquipmentItem, SpellSlotPool, SpellTableEntry,
-    SpellcastingProfile, WeaponAttack,
+    Character, ClassResource, CoinPurse, EquipmentItem, PackEquipment, PackEquipmentKind,
+    SpellSlotPool, SpellTableEntry, SpellcastingProfile, WeaponAttack,
 };
 
+#[derive(Clone, Copy)]
+struct ArmorRuleView {
+    base_ac: i16,
+    dexterity_cap: Option<i16>,
+    strength_requirement: Option<u8>,
+}
+
+struct WeaponRuleView<'a> {
+    category: &'a str,
+    kind: &'a str,
+    properties: Vec<&'a str>,
+    mastery: &'a str,
+    damage: &'a str,
+    damage_type: &'a str,
+    normal_range: u16,
+    long_range: Option<u16>,
+    versatile_damage: Option<&'a str>,
+}
+
+type InventoryKey = (String, Option<String>, Option<String>);
+
 impl Character {
+    fn pack_equipment_by_id(&self, id: &str) -> Option<&PackEquipment> {
+        self.resolved_pack_equipment
+            .iter()
+            .find(|item| item.id == id)
+    }
+
+    fn armor_rule(&self, name: &str, equipment_id: Option<&str>) -> Option<ArmorRuleView> {
+        if let Some(PackEquipment {
+            kind:
+                PackEquipmentKind::Armor {
+                    base_ac,
+                    dexterity_cap,
+                    strength_requirement,
+                    ..
+                },
+            ..
+        }) = equipment_id.and_then(|id| self.pack_equipment_by_id(id))
+        {
+            return Some(ArmorRuleView {
+                base_ac: *base_ac,
+                dexterity_cap: *dexterity_cap,
+                strength_requirement: *strength_requirement,
+            });
+        }
+        srd::armor_rule(name).map(|rule| ArmorRuleView {
+            base_ac: rule.base_ac,
+            dexterity_cap: rule.dexterity_cap,
+            strength_requirement: rule.strength_requirement,
+        })
+    }
+
+    fn weapon_rule(&self, name: &str, equipment_id: Option<&str>) -> Option<WeaponRuleView<'_>> {
+        if let Some(PackEquipment {
+            kind:
+                PackEquipmentKind::Weapon {
+                    category,
+                    kind,
+                    properties,
+                    mastery,
+                    damage,
+                    damage_type,
+                    normal_range,
+                    long_range,
+                    versatile_damage,
+                },
+            ..
+        }) = equipment_id.and_then(|id| self.pack_equipment_by_id(id))
+        {
+            return Some(WeaponRuleView {
+                category,
+                kind,
+                properties: properties.iter().map(String::as_str).collect(),
+                mastery,
+                damage,
+                damage_type,
+                normal_range: *normal_range,
+                long_range: *long_range,
+                versatile_damage: versatile_damage.as_deref(),
+            });
+        }
+        srd::weapon_rule(name).map(|rule| WeaponRuleView {
+            category: rule.category,
+            kind: rule.kind,
+            properties: rule.properties.to_vec(),
+            mastery: rule.mastery,
+            damage: rule.damage,
+            damage_type: rule.damage_type,
+            normal_range: rule.normal_range,
+            long_range: rule.long_range,
+            versatile_damage: rule.versatile_damage,
+        })
+    }
+
+    #[must_use]
+    pub fn background_name(&self) -> &str {
+        self.resolved_pack_background
+            .as_ref()
+            .map_or_else(|| self.background.as_str(), |rule| rule.name.as_str())
+    }
+
+    #[must_use]
+    pub fn background_abilities(&self) -> Vec<&str> {
+        self.resolved_pack_background.as_ref().map_or_else(
+            || {
+                srd::background_rule(&self.background)
+                    .map_or(&[][..], |rule| rule.abilities)
+                    .to_vec()
+            },
+            |rule| rule.abilities.iter().map(String::as_str).collect(),
+        )
+    }
+
+    #[must_use]
+    pub fn background_skills(&self) -> Vec<&str> {
+        self.resolved_pack_background.as_ref().map_or_else(
+            || {
+                srd::background_rule(&self.background)
+                    .map_or(&[][..], |rule| rule.skills)
+                    .to_vec()
+            },
+            |rule| rule.skills.iter().map(String::as_str).collect(),
+        )
+    }
+
+    #[must_use]
+    pub fn background_feat(&self) -> Option<&str> {
+        self.resolved_pack_background.as_ref().map_or_else(
+            || srd::background_rule(&self.background).map(|rule| rule.feat),
+            |rule| Some(rule.feat.as_str()),
+        )
+    }
+
+    #[must_use]
+    pub fn background_tool(&self) -> Option<&str> {
+        self.resolved_pack_background.as_ref().map_or_else(
+            || srd::background_rule(&self.background).map(|rule| rule.tool),
+            |rule| Some(rule.tool.as_str()),
+        )
+    }
+
+    #[must_use]
+    pub fn background_magic_initiate_list(&self) -> Option<&str> {
+        self.resolved_pack_background.as_ref().map_or_else(
+            || srd::background_rule(&self.background).and_then(|rule| rule.magic_initiate_list),
+            |rule| rule.magic_initiate_list.as_deref(),
+        )
+    }
+
     #[must_use]
     pub fn skills(&self) -> BTreeSet<String> {
-        let mut values: BTreeSet<String> = srd::background_rule(&self.background)
-            .map_or(&[][..], |rule| rule.skills)
-            .iter()
-            .map(|value| (*value).to_owned())
+        let mut values: BTreeSet<String> = self
+            .background_skills()
+            .into_iter()
+            .map(str::to_owned)
             .collect();
         values.extend(self.class_skills.iter().cloned());
         values.extend(
@@ -62,7 +211,7 @@ impl Character {
     #[must_use]
     pub fn initiative_modifier(&self) -> i16 {
         self.abilities.modifier("dexterity")
-            + if srd::background_rule(&self.background).is_some_and(|rule| rule.feat == "Alert")
+            + if self.background_feat() == Some("Alert")
                 || self.human_origin_feat.as_deref() == Some("Alert")
             {
                 i16::from(self.proficiency_bonus())
@@ -82,9 +231,9 @@ impl Character {
             )
         };
         if self
-            .equipped_armor()
-            .as_deref()
-            .and_then(srd::armor_rule)
+            .equipped_armor_item()
+            .as_ref()
+            .and_then(|armor| self.armor_rule(&armor.name, armor.equipment_id.as_deref()))
             .and_then(|armor| armor.strength_requirement)
             .is_some_and(|required| self.abilities.strength < required)
         {
@@ -96,8 +245,11 @@ impl Character {
     #[must_use]
     pub fn armor_class(&self) -> i16 {
         let dexterity = self.abilities.modifier("dexterity");
-        let armor = self.equipped_armor();
-        let mut value = if let Some(rule) = armor.as_deref().and_then(srd::armor_rule) {
+        let armor = self.equipped_armor_item();
+        let mut value = if let Some(rule) = armor
+            .as_ref()
+            .and_then(|item| self.armor_rule(&item.name, item.equipment_id.as_deref()))
+        {
             rule.base_ac
                 + match rule.dexterity_cap {
                     Some(cap) => dexterity.min(cap),
@@ -114,12 +266,13 @@ impl Character {
             value += 1;
         }
         if self.shield_equipped() {
-            value += 2;
+            value += self.shield_bonus();
         }
         value
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn inventory(&self) -> Vec<EquipmentItem> {
         let mut grants = Vec::new();
         if self.class_equipment_option != "Gold"
@@ -129,11 +282,12 @@ impl Character {
             grants.extend_from_slice(items);
         }
         if self.background_equipment_option == "A"
+            && self.resolved_pack_background.is_none()
             && let Some((items, _)) = srd::background_equipment(&self.background)
         {
             grants.extend_from_slice(items);
         }
-        let mut merged: Vec<((String, Option<String>), u16)> = Vec::new();
+        let mut merged: Vec<(InventoryKey, u16)> = Vec::new();
         for grant in grants {
             let expanded = srd::pack_contents(grant.name).unwrap_or(std::slice::from_ref(&grant));
             for item in expanded {
@@ -150,7 +304,39 @@ impl Character {
                     _ => item.name,
                 };
                 let weapon = item.weapon.or_else(|| srd::weapon_rule(name).map(|_| name));
-                let key = (name.to_owned(), weapon.map(str::to_owned));
+                let key = (name.to_owned(), weapon.map(str::to_owned), None);
+                if let Some((_, quantity)) =
+                    merged.iter_mut().find(|(existing, _)| *existing == key)
+                {
+                    *quantity += item.quantity;
+                } else {
+                    merged.push((key, item.quantity));
+                }
+            }
+        }
+        if self.background_equipment_option == "A"
+            && let Some(background) = &self.resolved_pack_background
+        {
+            for item in &background.equipment {
+                let (name, weapon, equipment_id) = if let Some(id) = &item.equipment_id {
+                    let Some(rule) = self
+                        .resolved_pack_equipment
+                        .iter()
+                        .find(|rule| rule.id == *id)
+                    else {
+                        continue;
+                    };
+                    let weapon = matches!(&rule.kind, PackEquipmentKind::Weapon { .. })
+                        .then(|| rule.name.clone());
+                    (rule.name.clone(), weapon, Some(rule.id.clone()))
+                } else {
+                    let Some(name) = item.name.clone() else {
+                        continue;
+                    };
+                    let weapon = srd::weapon_rule(&name).map(|_| name.clone());
+                    (name, weapon, None)
+                };
+                let key = (name, weapon, equipment_id);
                 if let Some((_, quantity)) =
                     merged.iter_mut().find(|(existing, _)| *existing == key)
                 {
@@ -162,25 +348,38 @@ impl Character {
         }
         merged
             .into_iter()
-            .map(|((name, weapon), quantity)| {
-                let category = if weapon.is_some() {
-                    "Weapon"
+            .map(|((name, weapon, equipment_id), quantity)| {
+                let category = if let Some(rule) = equipment_id
+                    .as_deref()
+                    .and_then(|id| self.pack_equipment_by_id(id))
+                {
+                    match &rule.kind {
+                        PackEquipmentKind::Weapon { .. } => "Weapon",
+                        PackEquipmentKind::Armor { .. } => "Armor",
+                        PackEquipmentKind::Shield { .. } => "Shield",
+                        PackEquipmentKind::Ammunition => "Ammunition",
+                        PackEquipmentKind::Gear => "Gear",
+                    }
+                    .to_owned()
+                } else if weapon.is_some() {
+                    "Weapon".to_owned()
                 } else if srd::armor_rule(&name).is_some() {
-                    "Armor"
+                    "Armor".to_owned()
                 } else if name == "Shield" {
-                    "Shield"
+                    "Shield".to_owned()
                 } else if ["Arrow", "Bolt", "Firearm Bullet", "Sling Bullet", "Needle"]
                     .contains(&name.as_str())
                 {
-                    "Ammunition"
+                    "Ammunition".to_owned()
                 } else {
-                    "Gear"
+                    "Gear".to_owned()
                 };
                 EquipmentItem {
                     name,
                     quantity,
-                    category: category.to_owned(),
+                    category,
                     weapon,
+                    equipment_id,
                 }
             })
             .collect()
@@ -195,9 +394,14 @@ impl Character {
                 .map_or(0, |(_, gold)| gold)
         };
         let background_gold = if self.background_equipment_option == "Gold" {
-            50
+            self.resolved_pack_background
+                .as_ref()
+                .map_or(50, |rule| rule.gold_alternative)
         } else {
-            srd::background_equipment(&self.background).map_or(0, |(_, gold)| gold)
+            self.resolved_pack_background.as_ref().map_or_else(
+                || srd::background_equipment(&self.background).map_or(0, |(_, gold)| gold),
+                |rule| rule.equipment_gold,
+            )
         };
         CoinPurse {
             gold: class_gold + background_gold,
@@ -207,10 +411,13 @@ impl Character {
 
     #[must_use]
     pub fn equipped_armor(&self) -> Option<String> {
+        self.equipped_armor_item().map(|item| item.name)
+    }
+
+    fn equipped_armor_item(&self) -> Option<EquipmentItem> {
         self.inventory()
             .into_iter()
             .find(|item| item.category == "Armor")
-            .map(|item| item.name)
     }
 
     #[must_use]
@@ -220,7 +427,27 @@ impl Character {
             .any(|item| item.category == "Shield")
     }
 
-    fn is_weapon_proficient(&self, rule: srd::WeaponRule) -> bool {
+    fn shield_bonus(&self) -> i16 {
+        self.inventory()
+            .iter()
+            .filter(|item| item.category == "Shield")
+            .map(|item| {
+                item.equipment_id
+                    .as_deref()
+                    .and_then(|id| self.pack_equipment_by_id(id))
+                    .map_or(2, |rule| {
+                        if let PackEquipmentKind::Shield { armor_class_bonus } = &rule.kind {
+                            *armor_class_bonus
+                        } else {
+                            2
+                        }
+                    })
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn is_weapon_proficient(&self, rule: &WeaponRuleView<'_>) -> bool {
         let training = srd::class_rule(&self.character_class).map_or("", |class| class.weapons);
         training == "Simple and Martial"
             || rule.category == "Simple"
@@ -241,7 +468,7 @@ impl Character {
             .into_iter()
             .filter_map(|item| {
                 let weapon = item.weapon.as_deref()?;
-                let rule = srd::weapon_rule(weapon)?;
+                let rule = self.weapon_rule(weapon, item.equipment_id.as_deref())?;
                 let abilities: &[&str] = if rule.kind == "Ranged" {
                     &["dexterity"]
                 } else if rule.properties.contains(&"Finesse") || self.character_class == "Monk" {
@@ -255,7 +482,7 @@ impl Character {
                     .max()
                     .unwrap_or(0);
                 let mut attack_bonus = modifier
-                    + if self.is_weapon_proficient(rule) {
+                    + if self.is_weapon_proficient(&rule) {
                         i16::from(self.proficiency_bonus())
                     } else {
                         0
@@ -566,11 +793,11 @@ impl Character {
 
     #[must_use]
     pub fn all_tool_proficiencies(&self) -> Vec<String> {
-        let mut values = vec![
-            srd::background_rule(&self.background)
-                .map_or("", |rule| rule.tool)
-                .to_owned(),
-        ];
+        let mut values: Vec<String> = self
+            .background_tool()
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
         for tool in self
             .class_choices
             .tools
@@ -766,17 +993,24 @@ impl Character {
     #[must_use]
     pub fn origin_feat_traits(&self) -> Vec<String> {
         let mut traits = Vec::new();
-        let background = srd::background_rule(&self.background);
-        if background.is_some_and(|rule| rule.feat == "Alert")
+        if self.background_feat() == Some("Alert")
             || self.human_origin_feat.as_deref() == Some("Alert")
         {
             traits.push("Alert: Initiative Proficiency; Initiative Swap".to_owned());
         }
-        if background.is_some_and(|rule| rule.feat == "Savage Attacker")
+        if self.background_feat() == Some("Savage Attacker")
             || self.human_origin_feat.as_deref() == Some("Savage Attacker")
         {
             traits.push("Savage Attacker: roll weapon damage dice twice once per turn".to_owned());
         }
+        traits.extend(self.magic_initiate_choices.iter().map(|choice| {
+            format!(
+                "Magic Initiate ({}): {}; {}",
+                choice.spell_list,
+                choice.cantrips.join(", "),
+                choice.level_one_spell
+            )
+        }));
         if !self.skilled_proficiencies.is_empty() {
             traits.push(format!(
                 "Skilled: {}",

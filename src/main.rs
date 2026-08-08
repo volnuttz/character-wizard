@@ -81,6 +81,8 @@ struct CreateArgs {
 struct RandomArgs {
     #[arg(long = "class", value_name = "CLASS")]
     class_name: Option<String>,
+    #[arg(long, value_name = "BACKGROUND")]
+    background: Option<String>,
     #[arg(long, value_name = "SPECIES")]
     species: Option<String>,
     #[arg(long)]
@@ -200,6 +202,27 @@ fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         .map(|value| canonical_srd_choice(value, &character_wizard_srd_data::CLASS_NAMES, "class"))
         .transpose()?;
     let requested_species = options.species.as_deref();
+    let requested_background = options.background.as_deref();
+    let custom_background = requested_background.and_then(|value| {
+        pack.and_then(|pack| {
+            pack.backgrounds.iter().find(|rule| {
+                rule.id.eq_ignore_ascii_case(value) || rule.name.eq_ignore_ascii_case(value)
+            })
+        })
+    });
+    let background = if custom_background.is_some() {
+        requested_background.map(str::to_owned)
+    } else {
+        requested_background
+            .map(|value| {
+                canonical_srd_choice(
+                    value,
+                    &character_wizard_srd_data::BACKGROUND_NAMES,
+                    "background",
+                )
+            })
+            .transpose()?
+    };
     let custom_species = requested_species.and_then(|value| {
         pack.and_then(|pack| {
             pack.species.iter().find(|rule| {
@@ -219,9 +242,12 @@ fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
     let template = resolve_template(options.template.as_deref()).map_err(|error| (1, error))?;
     let character = character_wizard_creation::generate_random_character_with_pack(
         character_class.as_deref(),
+        background.as_deref(),
         species.as_deref(),
         pack.map(data_pack_reference),
         pack.map_or(&[], |pack| pack.species.as_slice()),
+        pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
+        pack.map_or(&[], |pack| pack.equipment.as_slice()),
     )
     .map_err(|error| (1, error.to_string()))?;
     let json_output = options
@@ -297,6 +323,8 @@ fn edit(options: EditArgs, pack: Option<&data_pack::DataPackManifest>) -> CliRes
     let Some(mut edited) = character_wizard_creation::run_edit_interactive_with_pack(
         &character,
         pack.map_or(&[], |pack| pack.species.as_slice()),
+        pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
+        pack.map_or(&[], |pack| pack.equipment.as_slice()),
     )
     .map_err(|error| (1, error.to_string()))?
     else {
@@ -304,7 +332,7 @@ fn edit(options: EditArgs, pack: Option<&data_pack::DataPackManifest>) -> CliRes
         return Ok(());
     };
     edited.data_pack.clone_from(&character.data_pack);
-    resolve_pack_species(&mut edited, pack)?;
+    resolve_pack_content(&mut edited, pack)?;
     let template = options
         .output
         .as_ref()
@@ -360,7 +388,7 @@ fn show(path: &Path, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
         character.species_name(),
         character.character_class
     );
-    println!("Background    {}", character.background);
+    println!("Background    {}", character.background_name());
     println!("Alignment     {}", character.alignment);
     println!(
         "Combat        HP {} · AC {} · Speed {} ft.",
@@ -377,6 +405,20 @@ fn show(path: &Path, pack: Option<&data_pack::DataPackManifest>) -> CliResult {
             .join(", ")
     );
     println!("Languages     {}", languages(&character).join(", "));
+    println!(
+        "Equipment     {}",
+        character
+            .inventory()
+            .into_iter()
+            .map(|item| if item.quantity > 1 {
+                format!("{} x {}", item.quantity, item.name)
+            } else {
+                item.name
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!("Gold          {} GP", character.coins().gold);
     Ok(())
 }
 
@@ -391,6 +433,8 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         character_wizard_creation::run_quick_interactive_with_pack(
             pack_reference.as_ref(),
             pack.map_or(&[], |pack| pack.species.as_slice()),
+            pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
+            pack.map_or(&[], |pack| pack.equipment.as_slice()),
         )
         .map_err(|error| (1, error.to_string()))?
     } else {
@@ -403,6 +447,8 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
             &draft,
             pack_reference.clone(),
             pack.map_or(&[], |pack| pack.species.as_slice()),
+            pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
+            pack.map_or(&[], |pack| pack.equipment.as_slice()),
         ) {
             Ok(character) => {
                 completed_draft = Some(draft);
@@ -416,7 +462,7 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         }
     };
     set_data_pack(&mut character, pack);
-    resolve_pack_species(&mut character, pack)?;
+    resolve_pack_content(&mut character, pack)?;
     let json_output = options
         .json
         .unwrap_or_else(|| character_output_path(&character.name, "json"));
@@ -573,7 +619,7 @@ fn load_character(
         )
     })?;
     ensure_data_pack(&character, pack)?;
-    resolve_pack_species(&mut character, pack)?;
+    resolve_pack_content(&mut character, pack)?;
     Ok(character)
 }
 
@@ -620,10 +666,30 @@ fn ensure_data_pack(
     Ok(())
 }
 
-fn resolve_pack_species(
+fn resolve_pack_content(
     character: &mut Character,
     pack: Option<&data_pack::DataPackManifest>,
 ) -> CliResult {
+    character
+        .resolve_pack_background(pack.map_or(&[], |pack| pack.backgrounds.as_slice()))
+        .map_err(|error| {
+            (
+                1,
+                pack.map_or(error.clone(), |pack| {
+                    format!("{error} in data pack {}", pack.id)
+                }),
+            )
+        })?;
+    character
+        .resolve_pack_equipment(pack.map_or(&[], |pack| pack.equipment.as_slice()))
+        .map_err(|error| {
+            (
+                1,
+                pack.map_or(error.clone(), |pack| {
+                    format!("{error} in data pack {}", pack.id)
+                }),
+            )
+        })?;
     if character_wizard_srd_data::species_rule(&character.species).is_some() {
         character
             .resolve_pack_species(&[])
@@ -880,7 +946,7 @@ mod tests {
     }
 
     #[test]
-    fn random_pack_species_round_trips_and_renders_its_mechanics() {
+    fn random_pack_content_round_trips_and_renders_its_mechanics() {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let directory = std::env::temp_dir().join(format!(
             "character-wizard-pack-species-test-{}-{}",
@@ -890,7 +956,7 @@ mod tests {
         std::fs::create_dir(&directory).expect("create pack");
         std::fs::write(
             directory.join("data-pack.json"),
-            r#"{"format_version":1,"id":"moon-pack","version":1,"name":"Moon Pack","files":{"species":"species.json"}}"#,
+            r#"{"format_version":1,"id":"moon-pack","version":1,"name":"Moon Pack","files":{"species":"species.json","backgrounds":"backgrounds.json","equipment":"equipment.json"}}"#,
         )
         .expect("write manifest");
         std::fs::write(
@@ -898,12 +964,23 @@ mod tests {
             r#"[{"id":"moonfolk","name":"Moonfolk","sizes":["Small"],"speed":35,"darkvision_range":60,"traits":["Moonlit Step"]}]"#,
         )
         .expect("write species");
+        std::fs::write(
+            directory.join("backgrounds.json"),
+            r#"[{"id":"lunar-scout","name":"Lunar Scout","abilities":["dexterity","wisdom","charisma"],"skills":["Perception","Survival"],"feat":"Alert","tool":"Navigator's Tools","equipment":[{"equipment_id":"moonblade"},{"name":"Arrow","quantity":20}],"equipment_gold":12,"gold_alternative":50}]"#,
+        )
+        .expect("write backgrounds");
+        std::fs::write(
+            directory.join("equipment.json"),
+            r#"[{"id":"moonblade","name":"Moonblade","kind":{"type":"weapon","category":"Simple","kind":"Melee","properties":["Finesse","Light"],"mastery":"Vex","damage":"1d8","damage_type":"Radiant","normal_range":5}}]"#,
+        )
+        .expect("write equipment");
         let pack = crate::data_pack::load(&directory).expect("load pack");
         let json = directory.join("moonfolk.json");
         let pdf = directory.join("moonfolk.pdf");
         random(
             RandomArgs {
                 class_name: Some("fighter".to_owned()),
+                background: Some("lunar-scout".to_owned()),
                 species: Some("moonfolk".to_owned()),
                 template: Some(PathBuf::from("assets/character-sheet.pdf")),
                 json: Some(json.clone()),
@@ -930,6 +1007,14 @@ mod tests {
             1
         );
         assert_eq!(character.species, "moonfolk");
+        assert_eq!(character.background, "lunar-scout");
+        assert_eq!(character.background_name(), "Lunar Scout");
+        assert!(character.skills().contains("Perception"));
+        assert!(
+            character
+                .all_tool_proficiencies()
+                .contains(&"Navigator's Tools".to_owned())
+        );
         assert_eq!(character.species_name(), "Moonfolk");
         assert_eq!(character.size, "Small");
         assert_eq!(character.speed(), 35);
@@ -943,6 +1028,9 @@ mod tests {
         let field = crate::character_wizard_pdf_renderer::read_field_value(&pdf, "Text8")
             .expect("read species field");
         assert_eq!(field.as_str().expect("text value"), b"Moonfolk");
+        let field = crate::character_wizard_pdf_renderer::read_field_value(&pdf, "Text6")
+            .expect("read background field");
+        assert_eq!(field.as_str().expect("text value"), b"Lunar Scout");
         std::fs::remove_dir_all(directory).expect("remove pack");
     }
 

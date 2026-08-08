@@ -6,9 +6,51 @@ use crate::character_wizard_srd_data as srd;
 
 use crate::domain::CharacterSheet;
 
-use super::record::{Character, PackSpecies};
+use super::record::{Character, PackBackground, PackEquipment, PackSpecies};
 
 impl Character {
+    /// Resolve the exact custom-equipment catalog referenced by this character.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a custom background grant references a missing item
+    /// or the resolved character is invalid.
+    pub fn resolve_pack_equipment(&mut self, equipment: &[PackEquipment]) -> Result<(), String> {
+        if let Some(background) = &self.resolved_pack_background {
+            for grant in &background.equipment {
+                if let Some(id) = &grant.equipment_id
+                    && !equipment.iter().any(|item| item.id == *id)
+                {
+                    return Err(format!("unknown equipment in data pack: {id}"));
+                }
+            }
+        }
+        self.resolved_pack_equipment = equipment.to_vec();
+        self.validate()
+    }
+
+    /// Resolve external background mechanics for this character.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a referenced background is absent or its choices
+    /// make the completed character invalid.
+    pub fn resolve_pack_background(
+        &mut self,
+        backgrounds: &[PackBackground],
+    ) -> Result<(), String> {
+        if srd::background_rule(&self.background).is_some() {
+            self.resolved_pack_background = None;
+        } else {
+            let rule = backgrounds
+                .iter()
+                .find(|rule| rule.id == self.background.as_str())
+                .ok_or_else(|| format!("unknown background in data pack: {}", self.background))?;
+            self.resolved_pack_background = Some(rule.clone());
+        }
+        self.validate()
+    }
+
     /// Resolve and validate external species mechanics for this character.
     ///
     /// # Errors
@@ -62,22 +104,38 @@ impl Character {
                 *value = value.trim().to_owned();
             }
         }
-        if character.name.trim().is_empty() {
+        character.validate()?;
+        Ok(character)
+    }
+
+    /// Validate the canonical record using any runtime-resolved pack mechanics.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first structural or cross-field validation error.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.trim().is_empty() {
             return Err("name must not be empty".to_owned());
         }
-        if !(1..=20).contains(&character.level) {
+        if !(1..=20).contains(&self.level) {
             return Err("level must be between 1 and 20".to_owned());
         }
-        character.abilities.validate()?;
-        if character.selected_languages[0] == character.selected_languages[1] {
+        self.abilities.validate()?;
+        if self.selected_languages[0] == self.selected_languages[1] {
             return Err("choose two different standard languages".to_owned());
         }
-        character.validate_closed_values()?;
-        character.validate_species_choices()?;
-        character.validate_origin_choices()?;
-        character.validate_class_choices()?;
-        character.validate_equipment_choices()?;
-        Ok(character)
+        self.validate_closed_values()?;
+        self.validate_species_choices()?;
+        if srd::background_rule(&self.background).is_none()
+            && self.resolved_pack_background.is_none()
+        {
+            // Pack-dependent cross-field checks run after the CLI resolves the
+            // exact referenced pack revision.
+            return Ok(());
+        }
+        self.validate_origin_choices()?;
+        self.validate_class_choices()?;
+        self.validate_equipment_choices()
     }
 
     fn validate_closed_values(&self) -> Result<(), String> {
@@ -90,7 +148,10 @@ impl Character {
         if srd::class_rule(&self.character_class).is_none() {
             return Err(format!("unknown SRD class: {}", self.character_class));
         }
-        if srd::background_rule(&self.background).is_none() {
+        if srd::background_rule(&self.background).is_none()
+            && self.resolved_pack_background.is_none()
+            && self.data_pack.is_none()
+        {
             return Err(format!("unknown SRD background: {}", self.background));
         }
         if srd::species_rule(&self.species).is_none() && self.data_pack.is_none() {
@@ -270,25 +331,27 @@ impl Character {
 
     #[allow(clippy::too_many_lines)]
     fn validate_origin_choices(&self) -> Result<(), String> {
-        let background = srd::background_rule(&self.background).expect("validated background");
-        if self.human_origin_feat.as_deref() == Some(background.feat)
-            && !["Magic Initiate", "Skilled"].contains(&background.feat)
+        let Some(background_feat) = self.background_feat() else {
+            return Ok(());
+        };
+        let background_skills = self.background_skills();
+        if self.human_origin_feat.as_deref() == Some(background_feat)
+            && !["Magic Initiate", "Skilled"].contains(&background_feat)
         {
             return Err(format!(
-                "the {} Origin feat can be taken only once",
-                background.feat
+                "the {background_feat} Origin feat can be taken only once"
             ));
         }
         if self
             .human_skill
             .as_deref()
-            .is_some_and(|skill| background.skills.contains(&skill))
+            .is_some_and(|skill| background_skills.contains(&skill))
         {
             return Err(
                 "the Human Skillful proficiency must be additional to background skills".to_owned(),
             );
         }
-        let expected_magic = usize::from(background.magic_initiate_list.is_some())
+        let expected_magic = usize::from(self.background_magic_initiate_list().is_some())
             + usize::from(self.human_origin_feat.as_deref() == Some("Magic Initiate"));
         if self.magic_initiate_choices.len() != expected_magic {
             return Err(format!(
@@ -330,24 +393,23 @@ impl Character {
                 );
             }
         }
-        if background
-            .magic_initiate_list
+        if self
+            .background_magic_initiate_list()
             .is_some_and(|required| !lists.contains(required))
         {
             return Err(format!(
                 "the {} background requires Magic Initiate ({})",
                 self.background,
-                background.magic_initiate_list.expect("present")
+                self.background_magic_initiate_list().expect("present")
             ));
         }
-        let has_skilled = self.human_origin_feat.as_deref() == Some("Skilled");
-        if has_skilled != (self.skilled_proficiencies.len() == 3) {
-            return Err(if has_skilled {
-                "Skilled requires exactly three skill or tool proficiencies"
-            } else {
-                "Skilled proficiencies require the Skilled Origin feat"
-            }
-            .to_owned());
+        let skilled_count = usize::from(background_feat == "Skilled")
+            + usize::from(self.human_origin_feat.as_deref() == Some("Skilled"));
+        let expected_proficiencies = skilled_count * 3;
+        if self.skilled_proficiencies.len() != expected_proficiencies {
+            return Err(format!(
+                "Skilled requires exactly {expected_proficiencies} distinct skill or tool proficiencies"
+            ));
         }
         if self
             .skilled_proficiencies
@@ -356,10 +418,8 @@ impl Character {
         {
             return Err("unknown Skilled proficiencies".to_owned());
         }
-        let existing: BTreeSet<&str> = background
-            .skills
-            .iter()
-            .copied()
+        let existing: BTreeSet<&str> = background_skills
+            .into_iter()
             .chain(self.human_skill.as_deref())
             .chain(self.elf_keen_senses_skill.as_deref())
             .collect();
@@ -402,12 +462,7 @@ impl Character {
                 self.character_class
             ));
         }
-        let mut granted: BTreeSet<&str> = srd::background_rule(&self.background)
-            .expect("validated background")
-            .skills
-            .iter()
-            .copied()
-            .collect();
+        let mut granted: BTreeSet<&str> = self.background_skills().into_iter().collect();
         granted.extend(
             self.skilled_proficiencies
                 .iter()
@@ -669,6 +724,7 @@ fn validate_required_only(
 #[cfg(test)]
 mod tests {
     use super::Character;
+    use crate::character_wizard_domain::PackBackground;
 
     #[test]
     fn rejects_out_of_scope_levels_at_the_validation_boundary() {
@@ -677,5 +733,31 @@ mod tests {
         value["level"] = serde_json::json!(0);
         let error = Character::from_json(&value.to_string()).expect_err("level zero is invalid");
         assert_eq!(error, "level must be between 1 and 20");
+    }
+
+    #[test]
+    fn pack_background_must_resolve_before_full_validation() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(include_str!("../../fixtures/complete-character.json"))
+                .expect("fixture JSON");
+        value["background"] = serde_json::json!("shadow-agent");
+        value["data_pack"] = serde_json::json!({
+            "id": "test-pack",
+            "format_version": 1,
+            "version": 1
+        });
+        let mut character = Character::from_json(&value.to_string()).expect("structural record");
+        assert_eq!(
+            character.resolve_pack_background(&[]),
+            Err("unknown background in data pack: shadow-agent".to_owned())
+        );
+        let rule: PackBackground = serde_json::from_str(
+            r#"{"id":"shadow-agent","name":"Shadow Agent","abilities":["dexterity","constitution","intelligence"],"skills":["Sleight of Hand","Stealth"],"feat":"Alert","tool":"Thieves' Tools","equipment":[{"name":"Dagger"}],"equipment_gold":10,"gold_alternative":50}"#,
+        )
+        .expect("pack background");
+        character
+            .resolve_pack_background(std::slice::from_ref(&rule))
+            .expect("resolved character");
+        assert_eq!(character.background_name(), "Shadow Agent");
     }
 }

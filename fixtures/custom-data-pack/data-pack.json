@@ -4,6 +4,8 @@
   "version": 1,
   "name": "Moon Pack",
   "files": {
-    "species": "species.json"
+    "species": "species.json",
+    "backgrounds": "backgrounds.json",
+    "equipment": "equipment.json"
   }
 }
