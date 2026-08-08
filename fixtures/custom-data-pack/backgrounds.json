@@ -36,5 +36,34 @@
     ],
     "equipment_gold": 12,
     "gold_alternative": 50
+  },
+  {
+    "id": "moon-scholar",
+    "name": "Moon Scholar",
+    "abilities": [
+      "intelligence",
+      "wisdom",
+      "charisma"
+    ],
+    "skills": [
+      "Arcana",
+      "History"
+    ],
+    "feat": "Magic Initiate",
+    "magic_initiate_list": "Wizard",
+    "tool": "Calligrapher's Supplies",
+    "equipment": [
+      {
+        "name": "Quarterstaff"
+      },
+      {
+        "name": "Calligrapher's Supplies"
+      },
+      {
+        "name": "Robe"
+      }
+    ],
+    "equipment_gold": 8,
+    "gold_alternative": 50
   }
 ]

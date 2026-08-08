@@ -6,6 +6,7 @@
   "files": {
     "species": "species.json",
     "backgrounds": "backgrounds.json",
-    "equipment": "equipment.json"
+    "equipment": "equipment.json",
+    "spells": "spells.json"
   }
 }

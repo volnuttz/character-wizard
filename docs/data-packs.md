@@ -7,8 +7,8 @@ explicitly selects one.
 Declared content files must be JSON arrays. Basic custom species and custom
 background records are mechanically active for interactive creation, editing,
 constrained random generation, and quick creation. Typed custom equipment is
-active only when granted by a custom background. Spells are still validated as
-files but are not active yet.
+active only when granted by a custom background. Custom level 0 and level 1
+spells are active for supported Magic Initiate and built-in class spell choices.
 
 ## Version 1 manifest
 
@@ -160,3 +160,55 @@ damage dice, damage type, range, and optional `long_range` and
 `versatile_damage`. Armor supports category, base AC, optional Dexterity cap,
 and optional Strength requirement. These mechanics feed the existing attacks,
 AC, speed, inventory, character review, and PDF projections.
+
+## Spell records
+
+Spell IDs are add-only and cannot collide by display name with an SRD spell.
+The ID is stored in canonical character JSON; prompts, reviews, and rendered
+spell tables use the display name.
+
+The current level-1 creation scope accepts cantrips and level 1 spells:
+
+```json
+[
+  {
+    "id": "moon-spark",
+    "name": "Moon Spark",
+    "level": 0,
+    "school": "Evocation",
+    "lists": ["Wizard"],
+    "casting_time": "Action",
+    "range": "60 feet",
+    "components": ["V", "S"],
+    "notes": "Duration: Instantaneous",
+    "tags": ["Damage"]
+  },
+  {
+    "id": "moon-shield",
+    "name": "Moon Shield",
+    "level": 1,
+    "school": "Abjuration",
+    "lists": ["Wizard"],
+    "casting_time": "Reaction",
+    "range": "Self",
+    "components": ["V", "S", "M"],
+    "material": "a moonstone shard",
+    "concentration": true,
+    "notes": "Duration: up to 1 minute",
+    "tags": ["Defense"]
+  }
+]
+```
+
+Supported schools are Abjuration, Conjuration, Divination, Enchantment,
+Evocation, Illusion, Necromancy, and Transmutation. Supported lists are Bard,
+Cleric, Druid, Paladin, Ranger, Sorcerer, Warlock, and Wizard. Components are
+`V`, `S`, and `M`; `material` is required exactly when `M` is present.
+`concentration` and `ritual` default to false, while `tags` defaults to an empty
+array. Ritual spells must be level 1 in this initial slice.
+
+Pack spells join eligible built-in class catalogs and Magic Initiate catalogs
+when their `lists` membership matches. Loading a character with a pack spell
+requires the exact recorded pack version, just like custom species,
+backgrounds, and equipment. School and tags are validated descriptive metadata;
+packs cannot attach executable mechanics or new prompt behavior to a spell.

@@ -31,6 +31,39 @@ struct WeaponRuleView<'a> {
 type InventoryKey = (String, Option<String>, Option<String>);
 
 impl Character {
+    fn pack_spell(&self, reference: &str) -> Option<&super::record::PackSpell> {
+        self.resolved_pack_spells
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .find(|spell| spell.id == reference)
+    }
+
+    #[must_use]
+    pub fn spell_name<'a>(&'a self, reference: &'a str) -> &'a str {
+        self.pack_spell(reference)
+            .map_or(reference, |spell| spell.name.as_str())
+    }
+
+    #[must_use]
+    pub fn spell_is_on_list(&self, reference: &str, list: &str, level: u8) -> bool {
+        if let Some(spell) = self.pack_spell(reference) {
+            return spell.level == level && spell.lists.iter().any(|value| value == list);
+        }
+        let Some(spells) = (if ["Cleric", "Druid", "Wizard"].contains(&list) {
+            srd::magic_initiate_spell_list(list)
+        } else {
+            srd::class_spell_list(list)
+        }) else {
+            return false;
+        };
+        if level == 0 {
+            spells.cantrips.contains(&reference)
+        } else {
+            level == 1 && spells.level_one_spells.contains(&reference)
+        }
+    }
+
     fn pack_equipment_by_id(&self, id: &str) -> Option<&PackEquipment> {
         self.resolved_pack_equipment
             .iter()
@@ -624,7 +657,7 @@ impl Character {
                 Vec::new(),
                 vec![format!(
                     "{}: 1/Long Rest without a spell slot",
-                    choice.level_one_spell
+                    self.spell_name(&choice.level_one_spell)
                 )],
             )
         }));
@@ -750,17 +783,30 @@ impl Character {
                     .map(|spell| (1, spell)),
             )
             .filter_map(|(level, name)| {
-                let rule = srd::spell_rule(&name)?;
-                Some(SpellTableEntry {
-                    level,
-                    name,
-                    casting_time: rule.casting_time.clone(),
-                    range: rule.range.clone(),
-                    concentration: rule.concentration,
-                    ritual: rule.ritual,
-                    required_material: rule.required_material.is_some(),
-                    notes: rule.notes.clone(),
-                })
+                if let Some(rule) = self.pack_spell(&name) {
+                    Some(SpellTableEntry {
+                        level: rule.level,
+                        name: rule.name.clone(),
+                        casting_time: rule.casting_time.clone(),
+                        range: rule.range.clone(),
+                        concentration: rule.concentration,
+                        ritual: rule.ritual,
+                        required_material: rule.material.is_some(),
+                        notes: rule.notes.clone(),
+                    })
+                } else {
+                    let rule = srd::spell_rule(&name)?;
+                    Some(SpellTableEntry {
+                        level,
+                        name,
+                        casting_time: rule.casting_time.clone(),
+                        range: rule.range.clone(),
+                        concentration: rule.concentration,
+                        ritual: rule.ritual,
+                        required_material: rule.required_material.is_some(),
+                        notes: rule.notes.clone(),
+                    })
+                }
             })
             .collect()
     }
@@ -1007,8 +1053,13 @@ impl Character {
             format!(
                 "Magic Initiate ({}): {}; {}",
                 choice.spell_list,
-                choice.cantrips.join(", "),
-                choice.level_one_spell
+                choice
+                    .cantrips
+                    .iter()
+                    .map(|spell| self.spell_name(spell))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                self.spell_name(&choice.level_one_spell)
             )
         }));
         if !self.skilled_proficiencies.is_empty() {

@@ -17,6 +17,13 @@ All notable changes to character-wizard are documented here. The project follows
 - Custom backgrounds can grant typed custom weapons, armor, shields,
   ammunition, and gear by stable equipment ID; their supported mechanics flow
   into attacks, AC, speed, inventory summaries, and PDFs.
+- Campaign data packs can define validated level 0 and level 1 spells with
+  stable IDs, display metadata, components, tags, and supported class-list
+  membership.
+- Custom spells participate in eligible Magic Initiate and built-in class spell
+  choices across interactive, edit, random, and quick creation. Character JSON
+  retains stable spell IDs while reviews and PDF spell tables show pack names
+  and casting metadata.
 
 ## [0.5.1] - 2026-08-06
 

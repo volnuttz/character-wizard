@@ -6,9 +6,26 @@ use crate::character_wizard_srd_data as srd;
 
 use crate::domain::CharacterSheet;
 
-use super::record::{Character, PackBackground, PackEquipment, PackSpecies};
+use super::record::{Character, PackBackground, PackEquipment, PackSpecies, PackSpell};
 
 impl Character {
+    /// Resolve custom spells used by class and Origin-feat choices.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a selected spell is absent from the exact pack or
+    /// is not eligible for its selected list and level.
+    pub fn resolve_pack_spells(&mut self, spells: &[PackSpell]) -> Result<(), String> {
+        self.resolved_pack_spells = self.data_pack.as_ref().map(|_| spells.to_vec());
+        self.validate()
+    }
+
+    fn unresolved_pack_spell(&self, reference: &str) -> bool {
+        self.data_pack.is_some()
+            && self.resolved_pack_spells.is_none()
+            && srd::spell_rule(reference).is_none()
+    }
+
     /// Resolve the exact custom-equipment catalog referenced by this character.
     ///
     /// # Errors
@@ -360,27 +377,26 @@ impl Character {
         }
         let mut lists = BTreeSet::new();
         for choice in &self.magic_initiate_choices {
-            let spell_list = srd::magic_initiate_spell_list(&choice.spell_list)
-                .ok_or_else(|| "invalid Magic Initiate spell list".to_owned())?;
+            if srd::magic_initiate_spell_list(&choice.spell_list).is_none() {
+                return Err("invalid Magic Initiate spell list".to_owned());
+            }
             if !srd::SPELLCASTING_ABILITIES.contains(&choice.spellcasting_ability.as_str()) {
                 return Err("invalid Magic Initiate spellcasting ability".to_owned());
             }
             if choice.cantrips[0] == choice.cantrips[1] {
                 return Err("Magic Initiate requires two different cantrips".to_owned());
             }
-            if choice
-                .cantrips
-                .iter()
-                .any(|cantrip| !spell_list.cantrips.contains(&cantrip.as_str()))
-            {
+            if choice.cantrips.iter().any(|cantrip| {
+                !self.spell_is_on_list(cantrip, &choice.spell_list, 0)
+                    && !self.unresolved_pack_spell(cantrip)
+            }) {
                 return Err(format!(
                     "Magic Initiate cantrips must come from the {} list",
                     choice.spell_list
                 ));
             }
-            if !spell_list
-                .level_one_spells
-                .contains(&choice.level_one_spell.as_str())
+            if !self.spell_is_on_list(&choice.level_one_spell, &choice.spell_list, 1)
+                && !self.unresolved_pack_spell(&choice.level_one_spell)
             {
                 return Err(format!(
                     "Magic Initiate level 1 spell must come from the {} list",
@@ -615,13 +631,10 @@ impl Character {
                 self.character_class
             ));
         }
-        let spell_list = srd::class_spell_list(&self.character_class);
-        if self
-            .class_choices
-            .cantrips
-            .iter()
-            .any(|spell| spell_list.is_none_or(|list| !list.cantrips.contains(&spell.as_str())))
-        {
+        if self.class_choices.cantrips.iter().any(|spell| {
+            !self.spell_is_on_list(spell, self.character_class.as_str(), 0)
+                && !self.unresolved_pack_spell(spell)
+        }) {
             return Err(format!(
                 "invalid number or selection of {} cantrips",
                 self.character_class
@@ -639,10 +652,9 @@ impl Character {
             ));
         }
         if self.class_choices.prepared_spells.iter().any(|spell| {
-            spell_list.is_none_or(|list| {
-                !list.level_one_spells.contains(&spell.as_str())
-                    || srd::class_always_prepared(&self.character_class).contains(&spell.as_str())
-            })
+            (!self.spell_is_on_list(spell, self.character_class.as_str(), 1)
+                && !self.unresolved_pack_spell(spell))
+                || srd::class_always_prepared(&self.character_class).contains(&spell.as_str())
         }) {
             return Err(format!(
                 "invalid number or selection of {} prepared spells",
@@ -657,7 +669,7 @@ impl Character {
             ));
         }
         if self.class_choices.spellbook_spells.iter().any(|spell| {
-            spell_list.is_none_or(|list| !list.level_one_spells.contains(&spell.as_str()))
+            !self.spell_is_on_list(spell, "Wizard", 1) && !self.unresolved_pack_spell(spell)
         }) {
             return Err("Wizard spellbook spells must be level 1 Wizard spells".to_owned());
         }
@@ -724,7 +736,7 @@ fn validate_required_only(
 #[cfg(test)]
 mod tests {
     use super::Character;
-    use crate::character_wizard_domain::PackBackground;
+    use crate::character_wizard_domain::{PackBackground, PackSpell};
 
     #[test]
     fn rejects_out_of_scope_levels_at_the_validation_boundary() {
@@ -759,5 +771,45 @@ mod tests {
             .resolve_pack_background(std::slice::from_ref(&rule))
             .expect("resolved character");
         assert_eq!(character.background_name(), "Shadow Agent");
+    }
+
+    #[test]
+    fn pack_spell_references_require_exact_catalog_resolution() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(include_str!("../../fixtures/complete-character.json"))
+                .expect("fixture JSON");
+        value["background"] = serde_json::json!("moon-scholar");
+        value["data_pack"] = serde_json::json!({
+            "id": "test-pack",
+            "format_version": 1,
+            "version": 1
+        });
+        value["magic_initiate_choices"] = serde_json::json!([{
+            "spell_list": "Wizard",
+            "spellcasting_ability": "intelligence",
+            "cantrips": ["moon-spark", "Light"],
+            "level_one_spell": "Magic Missile"
+        }]);
+        let mut character = Character::from_json(&value.to_string()).expect("structural record");
+        let background: PackBackground = serde_json::from_str(
+            r#"{"id":"moon-scholar","name":"Moon Scholar","abilities":["dexterity","constitution","intelligence"],"skills":["Sleight of Hand","Stealth"],"feat":"Magic Initiate","magic_initiate_list":"Wizard","tool":"Thieves' Tools","equipment":[{"name":"Dagger"}],"equipment_gold":10,"gold_alternative":50}"#,
+        )
+        .expect("background record");
+        character
+            .resolve_pack_background(std::slice::from_ref(&background))
+            .expect("resolve background before spells");
+        assert_eq!(
+            character.resolve_pack_spells(&[]),
+            Err("Magic Initiate cantrips must come from the Wizard list".to_owned())
+        );
+
+        let spell: PackSpell = serde_json::from_str(
+            r#"{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","S"],"notes":"Duration: Instantaneous","tags":["Damage"]}"#,
+        )
+        .expect("spell record");
+        character
+            .resolve_pack_spells(std::slice::from_ref(&spell))
+            .expect("resolve exact spell catalog");
+        assert_eq!(character.spell_name("moon-spark"), "Moon Spark");
     }
 }

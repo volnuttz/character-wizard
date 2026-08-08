@@ -1,0 +1,60 @@
+[
+  {
+    "id": "moon-spark",
+    "name": "Moon Spark",
+    "level": 0,
+    "school": "Evocation",
+    "lists": [
+      "Wizard"
+    ],
+    "casting_time": "Action",
+    "range": "60 feet",
+    "components": [
+      "V",
+      "S"
+    ],
+    "notes": "Duration: Instantaneous",
+    "tags": [
+      "Damage"
+    ]
+  },
+  {
+    "id": "lunar-whisper",
+    "name": "Lunar Whisper",
+    "level": 0,
+    "school": "Illusion",
+    "lists": [
+      "Wizard"
+    ],
+    "casting_time": "Action",
+    "range": "30 feet",
+    "components": [
+      "S"
+    ],
+    "notes": "Duration: 1 minute",
+    "tags": [
+      "Utility"
+    ]
+  },
+  {
+    "id": "moon-shield",
+    "name": "Moon Shield",
+    "level": 1,
+    "school": "Abjuration",
+    "lists": [
+      "Wizard"
+    ],
+    "casting_time": "Reaction",
+    "range": "Self",
+    "components": [
+      "V",
+      "S",
+      "M"
+    ],
+    "material": "a moonstone shard",
+    "notes": "Duration: 1 round",
+    "tags": [
+      "Defense"
+    ]
+  }
+]

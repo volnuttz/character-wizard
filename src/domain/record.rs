@@ -351,6 +351,8 @@ pub struct Character {
     pub resolved_pack_background: Option<PackBackground>,
     #[serde(skip)]
     pub resolved_pack_equipment: Vec<PackEquipment>,
+    #[serde(skip)]
+    pub resolved_pack_spells: Option<Vec<PackSpell>>,
     pub species: SpeciesId,
     #[serde(skip)]
     pub resolved_pack_species: Option<PackSpecies>,
@@ -501,6 +503,29 @@ pub enum PackEquipmentKind {
         #[serde(default)]
         versatile_damage: Option<String>,
     },
+}
+
+/// A typed custom level-0 or level-1 spell supplied by a data pack.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PackSpell {
+    pub id: String,
+    pub name: String,
+    pub level: u8,
+    pub school: String,
+    pub lists: Vec<String>,
+    pub casting_time: String,
+    pub range: String,
+    pub components: Vec<String>,
+    #[serde(default)]
+    pub material: Option<String>,
+    #[serde(default)]
+    pub concentration: bool,
+    #[serde(default)]
+    pub ritual: bool,
+    pub notes: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 const fn default_equipment_quantity() -> u16 {

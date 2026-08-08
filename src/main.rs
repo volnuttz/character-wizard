@@ -248,6 +248,7 @@ fn random(options: RandomArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
         pack.map_or(&[], |pack| pack.species.as_slice()),
         pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
         pack.map_or(&[], |pack| pack.equipment.as_slice()),
+        pack.map_or(&[], |pack| pack.spells.as_slice()),
     )
     .map_err(|error| (1, error.to_string()))?;
     let json_output = options
@@ -325,6 +326,7 @@ fn edit(options: EditArgs, pack: Option<&data_pack::DataPackManifest>) -> CliRes
         pack.map_or(&[], |pack| pack.species.as_slice()),
         pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
         pack.map_or(&[], |pack| pack.equipment.as_slice()),
+        pack.map_or(&[], |pack| pack.spells.as_slice()),
     )
     .map_err(|error| (1, error.to_string()))?
     else {
@@ -435,6 +437,7 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
             pack.map_or(&[], |pack| pack.species.as_slice()),
             pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
             pack.map_or(&[], |pack| pack.equipment.as_slice()),
+            pack.map_or(&[], |pack| pack.spells.as_slice()),
         )
         .map_err(|error| (1, error.to_string()))?
     } else {
@@ -449,6 +452,7 @@ fn create(options: CreateArgs, pack: Option<&data_pack::DataPackManifest>) -> Cl
             pack.map_or(&[], |pack| pack.species.as_slice()),
             pack.map_or(&[], |pack| pack.backgrounds.as_slice()),
             pack.map_or(&[], |pack| pack.equipment.as_slice()),
+            pack.map_or(&[], |pack| pack.spells.as_slice()),
         ) {
             Ok(character) => {
                 completed_draft = Some(draft);
@@ -682,6 +686,16 @@ fn resolve_pack_content(
         })?;
     character
         .resolve_pack_equipment(pack.map_or(&[], |pack| pack.equipment.as_slice()))
+        .map_err(|error| {
+            (
+                1,
+                pack.map_or(error.clone(), |pack| {
+                    format!("{error} in data pack {}", pack.id)
+                }),
+            )
+        })?;
+    character
+        .resolve_pack_spells(pack.map_or(&[], |pack| pack.spells.as_slice()))
         .map_err(|error| {
             (
                 1,

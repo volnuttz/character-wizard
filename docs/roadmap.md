@@ -525,10 +525,10 @@ Goal: permit opt-in campaign content without mixing non-SRD material into the
 built-in SRD catalog.
 
 - [~] Define a versioned, documented data-pack format for compatible species,
-  backgrounds, equipment, spells, and other supported catalog records. The v1
-  manifest envelope, safe JSON-file validation, and species, background, and
-  background-owned equipment schemas are complete; spells remain to be
-  integrated.
+  backgrounds, equipment, spells, classes, and other supported catalog records.
+  The v1 manifest envelope, safe JSON-file validation, and species, background,
+  and background-owned equipment schemas are complete; spells and classes
+  remain to be integrated.
 - [x] Add `--data <directory>` to load and validate an explicit campaign pack.
 - [x] Keep built-in content strictly sourced from the supplied SRD and separate
   pack provenance from canonical character data.
@@ -539,7 +539,7 @@ built-in SRD catalog.
 - [~] Define conflicts, stable identifiers, validation, and PDF-rendering
   behavior for pack-provided content. Add-only species, background, and
   background-owned equipment IDs and their rendering behavior are complete;
-  spells remain pending.
+  spells and classes remain pending.
 
 #### Custom backgrounds
 
@@ -575,10 +575,44 @@ built-in SRD catalog.
 - [x] Add an example pack plus deterministic validation, derived-value, and PDF
   write/read-back coverage.
 
+#### Custom spells
+
+- [x] Define add-only spell records with stable IDs, display names, level,
+  school, casting metadata, components, tags, and supported spell-list
+  membership.
+- [x] Validate spell mechanics, duplicate IDs and names, SRD collisions, list
+  membership, and every cross-record reference.
+- [x] Integrate pack spells with eligible background feat and built-in class
+  spell choices while keeping built-in SRD spell data unchanged; retain list
+  membership for the later declarative pack-class spellcasting extension.
+- [x] Resolve custom spells through creation, editing, random and quick creation,
+  canonical validation, spell summaries, and existing PDF spell-table fields.
+- [x] Add an example pack plus deterministic selection, validation, and PDF
+  write/read-back coverage.
+
+#### Custom classes
+
+- [ ] After custom spells, define an add-only basic custom-class schema with a
+  stable ID, display name, Hit Die, saving throws, skill pool and selection
+  count, armor and weapon training, starting gold/equipment, fixed level-1
+  feature descriptions, and an optional Weapon Mastery count.
+- [ ] Keep the first class slice declarative and non-spellcasting, with no
+  bespoke class-specific prompts, executable scripts, or arbitrary pack code.
+- [ ] Add basic pack classes to interactive creation, editing, constrained
+  random generation, and quick creation with stable canonical references.
+- [ ] Integrate pack classes with HP, proficiencies, skill exclusions, starting
+  equipment, inventory, review and `show` output, validation, and PDF summaries.
+- [ ] Add deterministic creation, edit, random, quick-create, validation,
+  derived-value, and PDF write/read-back tests for the basic class slice.
+- [ ] Extend the declarative class model later with reusable choice primitives,
+  resources, and optional spellcasting that references validated built-in or
+  pack spell lists.
+
 Exit criteria:
 
-- Users can create and render characters with a validated external campaign pack
-  while default installations remain SRD-only and self-contained.
+- Users can create and render characters with validated external species,
+  backgrounds, background-owned equipment, spells, and basic classes while
+  default installations remain SRD-only and self-contained.
 
 ### Phase 12: Portable character sharing
 

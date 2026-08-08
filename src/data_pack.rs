@@ -9,7 +9,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::character_wizard_domain::{
-    PackBackground, PackEquipment, PackEquipmentKind, PackSpecies,
+    PackBackground, PackEquipment, PackEquipmentKind, PackSpecies, PackSpell,
 };
 
 pub const MANIFEST_FILE: &str = "data-pack.json";
@@ -30,6 +30,8 @@ pub struct DataPackManifest {
     pub backgrounds: Vec<PackBackground>,
     #[serde(skip)]
     pub equipment: Vec<PackEquipment>,
+    #[serde(skip)]
+    pub spells: Vec<PackSpell>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -93,6 +95,14 @@ pub fn load(directory: &Path) -> Result<DataPackManifest, String> {
         manifest.equipment = serde_json::from_str(&source)
             .map_err(|error| format!("invalid equipment data {}: {error}", path.display()))?;
         validate_equipment(&manifest.equipment)?;
+    }
+    if let Some(relative) = manifest.files.get(&ContentFamily::Spells) {
+        let path = directory.join(relative);
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("unable to read spells data: {error}"))?;
+        manifest.spells = serde_json::from_str(&source)
+            .map_err(|error| format!("invalid spells data {}: {error}", path.display()))?;
+        validate_spells(&manifest.spells)?;
     }
     if let Some(relative) = manifest.files.get(&ContentFamily::Backgrounds) {
         let path = directory.join(relative);
@@ -376,6 +386,80 @@ fn valid_damage_dice(value: &str) -> bool {
             .is_ok_and(|sides| (2..=100).contains(&sides))
 }
 
+fn validate_spells(spells: &[PackSpell]) -> Result<(), String> {
+    const SCHOOLS: [&str; 8] = [
+        "Abjuration",
+        "Conjuration",
+        "Divination",
+        "Enchantment",
+        "Evocation",
+        "Illusion",
+        "Necromancy",
+        "Transmutation",
+    ];
+    const LISTS: [&str; 8] = [
+        "Bard", "Cleric", "Druid", "Paladin", "Ranger", "Sorcerer", "Warlock", "Wizard",
+    ];
+    let mut ids = std::collections::BTreeSet::new();
+    let mut names = std::collections::BTreeSet::new();
+    for spell in spells {
+        if !is_identifier(&spell.id) || !ids.insert(spell.id.as_str()) {
+            return Err(format!("invalid or duplicate pack spell id: {}", spell.id));
+        }
+        let normalized_name = spell.name.trim().to_ascii_lowercase();
+        if normalized_name.is_empty() || !names.insert(normalized_name) {
+            return Err(format!(
+                "invalid or duplicate pack spell name: {}",
+                spell.name
+            ));
+        }
+        let conflicts_with_srd = LISTS
+            .iter()
+            .filter_map(|list| crate::character_wizard_srd_data::class_spell_list(list))
+            .flat_map(|list| list.cantrips.iter().chain(list.level_one_spells.iter()))
+            .any(|name| name.eq_ignore_ascii_case(&spell.name));
+        if conflicts_with_srd {
+            return Err(format!("pack spell conflicts with SRD spell: {}", spell.id));
+        }
+        let lists: std::collections::BTreeSet<&str> =
+            spell.lists.iter().map(String::as_str).collect();
+        let components: std::collections::BTreeSet<&str> =
+            spell.components.iter().map(String::as_str).collect();
+        let tags: std::collections::BTreeSet<&str> =
+            spell.tags.iter().map(String::as_str).collect();
+        let has_material = components.contains("M");
+        let valid = spell.level <= 1
+            && SCHOOLS.contains(&spell.school.as_str())
+            && !spell.lists.is_empty()
+            && spell.lists.len() == lists.len()
+            && spell
+                .lists
+                .iter()
+                .all(|list| LISTS.contains(&list.as_str()))
+            && !spell.casting_time.trim().is_empty()
+            && !spell.range.trim().is_empty()
+            && !spell.notes.trim().is_empty()
+            && !spell.components.is_empty()
+            && spell.components.len() == components.len()
+            && spell
+                .components
+                .iter()
+                .all(|component| ["V", "S", "M"].contains(&component.as_str()))
+            && (has_material == spell.material.is_some())
+            && spell
+                .material
+                .as_deref()
+                .is_none_or(|material| !material.trim().is_empty())
+            && (!spell.ritual || spell.level == 1)
+            && spell.tags.len() == tags.len()
+            && spell.tags.iter().all(|tag| !tag.trim().is_empty());
+        if !valid {
+            return Err(format!("invalid pack spell mechanics: {}", spell.id));
+        }
+    }
+    Ok(())
+}
+
 fn validate_species(species: &[PackSpecies]) -> Result<(), String> {
     let mut ids = std::collections::BTreeSet::new();
     for rule in species {
@@ -478,8 +562,8 @@ fn is_safe_relative_path(path: &Path) -> bool {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{load, validate_backgrounds, validate_equipment};
-    use crate::character_wizard_domain::{PackBackground, PackEquipment};
+    use super::{load, validate_backgrounds, validate_equipment, validate_spells};
+    use crate::character_wizard_domain::{PackBackground, PackEquipment, PackSpell};
 
     #[test]
     fn loads_a_versioned_pack_with_declared_json_content() {
@@ -492,7 +576,7 @@ mod tests {
         std::fs::create_dir(&directory).expect("create pack");
         std::fs::write(
             directory.join("data-pack.json"),
-            r#"{"format_version":1,"id":"my-campaign","version":1,"name":"My Campaign","files":{"species":"species.json","backgrounds":"backgrounds.json","equipment":"equipment.json"}}"#,
+            r#"{"format_version":1,"id":"my-campaign","version":1,"name":"My Campaign","files":{"species":"species.json","backgrounds":"backgrounds.json","equipment":"equipment.json","spells":"spells.json"}}"#,
         )
         .expect("write manifest");
         std::fs::write(
@@ -510,14 +594,20 @@ mod tests {
             r#"[{"id":"moonblade","name":"Moonblade","kind":{"type":"weapon","category":"Simple","kind":"Melee","properties":["Finesse","Light"],"mastery":"Vex","damage":"1d8","damage_type":"Radiant","normal_range":5}}]"#,
         )
         .expect("write equipment");
+        std::fs::write(
+            directory.join("spells.json"),
+            r#"[{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","S"],"notes":"Duration: Instantaneous","tags":["Damage"]}]"#,
+        )
+        .expect("write spells");
 
         let manifest = load(&directory).expect("load pack");
         std::fs::remove_dir_all(&directory).expect("remove pack");
         assert_eq!(manifest.id, "my-campaign");
-        assert_eq!(manifest.files.len(), 3);
+        assert_eq!(manifest.files.len(), 4);
         assert_eq!(manifest.species[0].id, "moonfolk");
         assert_eq!(manifest.backgrounds[0].id, "lunar-scout");
         assert_eq!(manifest.equipment[0].id, "moonblade");
+        assert_eq!(manifest.spells[0].id, "moon-spark");
     }
 
     #[test]
@@ -576,6 +666,39 @@ mod tests {
             validate_backgrounds(&[background], &[])
                 .expect_err("unknown item")
                 .contains("references unknown pack equipment")
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_or_conflicting_spell_rules() {
+        let conflicting: PackSpell = serde_json::from_str(
+            r#"{"id":"acid-splash","name":"acid splash","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","S"],"notes":"Duration: Instantaneous"}"#,
+        )
+        .expect("spell record");
+        assert!(
+            validate_spells(&[conflicting])
+                .expect_err("SRD collision")
+                .contains("conflicts with SRD spell")
+        );
+
+        let invalid_material: PackSpell = serde_json::from_str(
+            r#"{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","M"],"notes":"Duration: Instantaneous"}"#,
+        )
+        .expect("spell record");
+        assert!(
+            validate_spells(&[invalid_material])
+                .expect_err("material mismatch")
+                .contains("invalid pack spell mechanics")
+        );
+
+        let invalid_list: PackSpell = serde_json::from_str(
+            r#"{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Artificer"],"casting_time":"Action","range":"60 feet","components":["V"],"notes":"Duration: Instantaneous"}"#,
+        )
+        .expect("spell record");
+        assert!(
+            validate_spells(&[invalid_list])
+                .expect_err("unsupported list")
+                .contains("invalid pack spell mechanics")
         );
     }
 }

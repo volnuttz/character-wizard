@@ -302,7 +302,9 @@ mod tests {
 
     use super::render_character;
     use crate::{
-        character_wizard_domain::{Character, PackBackground, PackEquipment, PackSpecies},
+        character_wizard_domain::{
+            Character, PackBackground, PackEquipment, PackSpecies, PackSpell,
+        },
         pdf_renderer::pdf_renderer_field_writer::read_field_value,
     };
 
@@ -390,6 +392,58 @@ mod tests {
         let document = lopdf::Document::load(&output).expect("reopen output");
         assert_eq!(document.get_pages().len(), 2);
         assert!(document.catalog().expect("catalog").has(b"AcroForm"));
+        std::fs::remove_file(output).expect("remove proof PDF");
+    }
+
+    #[test]
+    fn pack_spell_metadata_is_stored_in_existing_spell_fields() {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let mut character =
+            Character::from_json(include_str!("../../fixtures/complete-character.json"))
+                .expect("character fixture");
+        character
+            .class_choices
+            .cantrips
+            .insert("moon-spark".to_owned());
+        character.resolved_pack_spells = Some(
+            serde_json::from_str::<Vec<PackSpell>>(
+                r#"[{"id":"moon-spark","name":"Moon Spark","level":0,"school":"Evocation","lists":["Wizard"],"casting_time":"Action","range":"60 feet","components":["V","S","M"],"material":"a moonstone shard","concentration":true,"notes":"Duration: up to 1 minute","tags":["Damage"]}]"#,
+            )
+            .expect("pack spells"),
+        );
+        let row = character
+            .spell_table_entries()
+            .iter()
+            .position(|spell| spell.name == "Moon Spark")
+            .expect("custom spell row");
+        let output = std::env::temp_dir().join(format!(
+            "character-wizard-pack-spell-render-{}-{}.pdf",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        render_character(
+            &character,
+            std::path::Path::new("assets/character-sheet.pdf"),
+            &output,
+        )
+        .expect("render character");
+        for (field, expected) in [
+            (format!("Text105.{row}"), "0"),
+            (format!("Text106.{row}"), "Moon Spark"),
+            (format!("Text107.{row}"), "Action"),
+            (format!("Text109.{row}"), "60 feet"),
+        ] {
+            let value = read_field_value(&output, &field).expect("read custom spell field");
+            assert_eq!(value.as_str().expect("text value"), expected.as_bytes());
+        }
+        let local = row;
+        for field in [
+            format!("Check Box252.{local}"),
+            format!("Check Box254.0.{local}"),
+        ] {
+            let value = read_field_value(&output, &field).expect("read custom spell checkbox");
+            assert_ne!(value.as_name().expect("checkbox value"), b"Off");
+        }
         std::fs::remove_file(output).expect("remove proof PDF");
     }
 }
