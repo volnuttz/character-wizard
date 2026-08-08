@@ -287,8 +287,9 @@ Goal: make changes and releases repeatable, reviewable, and safe.
 
 - [x] Continuous integration runs rustfmt, Clippy, locked Cargo tests, coverage,
   dependency policy checks, and native builds across supported platforms.
-- [x] Add a test-coverage report and agree on a minimum threshold (85% line
-  coverage, reported and enforced in the quality workflow).
+- [~] Add a test-coverage report and enforce the agreed 85% line-coverage
+  threshold. LCOV generation and artifact upload are complete; the workflow does
+  not yet fail when coverage falls below the threshold.
 - [x] A reusable Rust-owned character JSON fixture supports model and native
   binary smoke tests.
 - [x] Add parameterized tests for every class, background, and species.
@@ -645,6 +646,44 @@ Exit criteria:
 
 - A user can share a completed character as a compact code and import it into a
   valid canonical JSON record.
+
+### Phase 13: CI efficiency and toolchain compatibility
+
+Goal: retain the existing quality and release guarantees while reducing duplicate
+GitHub Actions work, making coverage policy truthful, and testing both the minimum
+and current Rust toolchains intentionally.
+
+- [ ] Define distinct pull-request, main-branch, and release-tag CI tiers so the
+  same commit is not unnecessarily checked for both an internal branch push and
+  its pull request.
+- [ ] Run platform-independent `cargo fmt --check` once on Linux instead of once
+  per supported operating system.
+- [ ] Preserve cross-platform Clippy/tests for the Windows, macOS, and Unix code
+  paths while separating them from platform-independent checks.
+- [ ] Enforce the documented 85% line-coverage threshold in the quality workflow,
+  or revise the policy explicitly if the measured baseline requires a different
+  agreed threshold.
+- [ ] Keep scheduled and change-triggered RustSec vulnerability monitoring, but
+  remove the duplicate advisory pass between `cargo audit` and the default
+  `cargo deny check`; retain deny checks for licenses, bans, and dependency
+  sources.
+- [ ] Cache Cargo dependencies and pinned CI tools, or use securely pinned
+  prebuilt audit tools, after measuring the installation and compilation savings.
+- [ ] Continue treating Rust 1.88 as the `lopdf`-defined MSRV and reproducible
+  release toolchain, and add a current-stable Rust compatibility lane so future
+  compiler regressions are visible before a toolchain upgrade.
+- [ ] Pin third-party GitHub Actions to reviewed immutable commit SHAs and retain
+  least-privilege workflow permissions.
+- [ ] Once the streamlined job names are stable, document and configure the
+  required main-branch checks so release policy and repository enforcement agree.
+
+Exit criteria:
+
+- Pull requests execute one intentional quality pipeline, formatting runs once,
+  the 85% coverage policy is machine-enforced, dependency policy has no redundant
+  advisory scan, Rust 1.88 and current stable both compile and test successfully,
+  and tagged releases still produce and smoke-test all four native archives with
+  matching checksums.
 
 Prefer vertical slices after packaging. For example, complete Fighter choices,
 equipment, calculations, PDF fields, and tests together rather than adding every
